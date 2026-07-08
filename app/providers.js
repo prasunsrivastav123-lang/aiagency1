@@ -3,18 +3,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60000,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+const queryClient = new QueryClient();
 
 export function Providers({ children }) {
   console.log(
-    "CLIENT ID =",
+    "CLIENT ID:",
     process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
   );
 

@@ -1,11 +1,13 @@
 import { MongoClient } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
 import { NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { callGemini } from '@/lib/gemini'
+import bcrypt from 'bcryptjs'
 import { OAuth2Client } from 'google-auth-library'
-
+const googleClient = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID
+)
 const oAuth2Client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
