@@ -3,8 +3,14 @@ import { v4 as uuidv4 } from 'uuid'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { generateLeads } from '@/lib/mock-leads'
 import { callGemini } from '@/lib/gemini'
+import { OAuth2Client } from 'google-auth-library'
+
+const oAuth2Client = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.NEXT_PUBLIC_BASE_URL + '/api/auth/callback/google'
+)
 
 // ---------- MongoDB ----------
 let client, db
@@ -87,18 +93,85 @@ async function handle(request, { params }) {
     //   GET YOUR CLIENT ID HERE: https://console.cloud.google.com/apis/credentials
     //   Recommended library: `next-auth` with GoogleProvider
     //   Callback URL you must register: {NEXT_PUBLIC_BASE_URL}/api/auth/callback/google
-    if (route === '/auth/google' && method === 'POST') {
-      const b = await request.json().catch(() => ({}))
-      // Mock: pretend Google returned this user. In real integration, exchange code -> tokens -> userinfo.
-      const email = (b.email || 'demo.google@agencyos.ai').toLowerCase()
-      let user = await db.collection('users').findOne({ email })
-      if (!user) {
-        user = { id: uuidv4(), name: b.name || 'Demo Google User', email, role: 'sales', provider: 'google', createdAt: new Date() }
-        await db.collection('users').insertOne(user)
-      }
-      const token = signToken(user)
-      return ok({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role }, mocked: true })
+if (route === '/auth/google' && method === 'POST') {
+
+  const body = await request.json()
+
+  if (!body.credential)
+    return err("Missing Google credential")
+
+  const ticket =
+    await googleClient.verifyIdToken({
+
+      idToken: body.credential,
+
+      audience: process.env.GOOGLE_CLIENT_ID
+
+    })
+
+  const payload = ticket.getPayload()
+
+  if (!payload)
+    return err("Invalid Google token")
+
+  const email =
+    payload.email.toLowerCase()
+
+  let user =
+    await db.collection("users").findOne({
+
+      email
+
+    })
+
+  if (!user) {
+
+    user = {
+
+      id: uuidv4(),
+
+      name: payload.name,
+
+      email,
+
+      picture: payload.picture,
+
+      provider: "google",
+
+      role: "sales",
+
+      createdAt: new Date()
+
     }
+
+    await db.collection("users").insertOne(user)
+
+  }
+
+  const token =
+    signToken(user)
+
+  return ok({
+
+    token,
+
+    user: {
+
+      id: user.id,
+
+      name: user.name,
+
+      email: user.email,
+
+      picture: user.picture,
+
+      role: user.role
+
+    }
+
+  })
+
+}
 
     if (route === '/auth/me' && method === 'GET') {
       const t = verifyToken(request); if (!t) return err('Unauthorized', 401)
@@ -107,17 +180,179 @@ async function handle(request, { params }) {
 
     // ====== LEADS ======
     // POST /api/leads/search { city, category, filters }
-    if (route === '/leads/search' && method === 'POST') {
-      const b = await request.json()
-      if (!b.city || !b.category) return err('city and category required')
-      const leads = generateLeads(b.city, b.category, b.limit || 12)
-      // Apply filters if any
-      let filtered = leads
-      if (b.filters?.noWebsite) filtered = filtered.filter(l => !l.website)
-      if (b.filters?.minRating) filtered = filtered.filter(l => l.rating >= b.filters.minRating)
-      return ok({ leads: filtered, count: filtered.length, source: 'mock' })
-    }
+// ====== LEADS ======
+// POST /api/leads/search
+// ====== LEADS ======
+if (route === '/leads/search' && method === 'POST') {
+  const b = await request.json()
 
+  if (!b.city || !b.category)
+    return err("city and category required")
+
+  // Smart category mapping
+  const categoryMap = {
+    restaurant: [
+      "catering.restaurant",
+      "catering.fast_food",
+      "catering.cafe"
+    ],
+
+    cafe: [
+      "catering.cafe"
+    ],
+
+    hotel: [
+      "accommodation.hotel"
+    ],
+
+    gym: [
+      "sport.fitness"
+    ],
+
+    salon: [
+      "service.beauty",
+      "service.hairdresser"
+    ],
+
+    dentist: [
+      "healthcare.dentist"
+    ],
+
+    hospital: [
+      "healthcare.hospital"
+    ],
+
+    pharmacy: [
+      "healthcare.pharmacy"
+    ],
+
+    supermarket: [
+      "commercial.supermarket"
+    ],
+
+    school: [
+      "education.school"
+    ]
+  }
+
+  const selected =
+    categoryMap[b.category.toLowerCase()] || [b.category.toLowerCase()]
+
+  // ------------------------
+  // Get city coordinates
+  // ------------------------
+
+  const geo = await fetch(
+    `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(
+      b.city
+    )}&limit=1&apiKey=${process.env.GEOAPIFY_API_KEY}`
+  )
+
+  const geoData = await geo.json()
+
+  if (!geoData.features?.length)
+    return err("City not found")
+
+  const [lon, lat] =
+    geoData.features[0].geometry.coordinates
+
+  // ------------------------
+  // Search businesses
+  // ------------------------
+
+  let leads = []
+
+  for (const category of selected) {
+
+    const url =
+      `https://api.geoapify.com/v2/places?` +
+      `categories=${category}` +
+      `&filter=circle:${lon},${lat},10000` +
+      `&limit=20` +
+      `&apiKey=${process.env.GEOAPIFY_API_KEY}`
+
+    const res = await fetch(url)
+
+    const data = await res.json()
+
+    const businesses =
+      (data.features || []).map(place => ({
+
+        id: place.properties.place_id,
+
+        name:
+          place.properties.name ||
+          "Unknown Business",
+
+        address:
+          place.properties.formatted || "",
+
+        phone:
+          place.properties.phone ||
+          null,
+
+        website:
+          place.properties.website ||
+          null,
+
+        email:
+          place.properties.email ||
+          null,
+
+        city: b.city,
+
+        category: b.category,
+
+        lat:
+          place.properties.lat,
+
+        lng:
+          place.properties.lon,
+
+        rating: 0,
+
+        reviewCount: 0,
+
+        source: "Geoapify"
+
+      }))
+
+    leads.push(...businesses)
+  }
+
+  // Remove duplicates
+
+  const unique =
+    Array.from(
+      new Map(
+        leads.map(l => [l.id, l])
+      ).values()
+    )
+
+  let filtered = unique
+
+  if (b.filters?.noWebsite)
+    filtered =
+      filtered.filter(
+        l => !l.website
+      )
+
+  if (b.filters?.hasPhone)
+    filtered =
+      filtered.filter(
+        l => l.phone
+      )
+
+  return ok({
+
+    leads: filtered,
+
+    count: filtered.length,
+
+    source: "geoapify"
+
+  })
+}
     // POST /api/leads/score { business }
     if (route === '/leads/score' && method === 'POST') {
       const b = await request.json()
