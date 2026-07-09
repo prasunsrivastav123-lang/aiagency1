@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 import { callGemini } from '@/lib/gemini'
 import bcrypt from 'bcryptjs'
+import { parseSearch } from "@/lib/search-parser";
 import { OAuth2Client } from 'google-auth-library'
 const googleClient = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID
@@ -184,6 +185,20 @@ if (route === '/auth/google' && method === 'POST') {
     // POST /api/leads/search { city, category, filters }
 // ====== LEADS ======
 // POST /api/leads/search
+if (route === "/search/ai" && method === "POST") {
+
+  const body = await request.json();
+
+  const parsed = parseSearch(body.query || "");
+
+  if (!parsed.city)
+    return err("Please enter a city.");
+
+  if (!parsed.category)
+    return err("Please enter a business category.");
+
+  return ok(parsed);
+}
 // ====== LEADS ======
 if (route === '/leads/search' && method === 'POST') {
   const b = await request.json()
@@ -237,8 +252,15 @@ if (route === '/leads/search' && method === 'POST') {
     ]
   }
 
-  const selected =
-    categoryMap[b.category.toLowerCase()] || [b.category.toLowerCase()]
+const key = b.category
+  .toLowerCase()
+  .trim()
+  .replace(/s$/, "");
+const selected =
+  categoryMap[key] || ["commercial"];
+
+console.log("Category:", b.category);
+console.log("Mapped:", selected);
 
   // ------------------------
   // Get city coordinates

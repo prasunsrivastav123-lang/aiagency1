@@ -20,7 +20,7 @@ const nextConfig = {
     return config;
   },
   onDemandEntries: {
-    maxInactiveAge: 10000,
+    maxInactiveAge: 50000,
     pagesBufferLength: 2,
   },
   async headers() {

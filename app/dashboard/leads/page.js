@@ -1,20 +1,71 @@
 'use client'
-
-import { useState } from 'react'
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import { Search, MapPin, Phone, Globe, Instagram, Facebook, Star, Sparkles, Loader2, ExternalLink, Rocket, Save, Zap, TrendingUp, ChevronRight } from 'lucide-react'
+import {
+  Search, MapPin, Phone, Globe, Instagram, Facebook, Star, Sparkles, Loader2,
+  Rocket, Save, Zap, TrendingUp, Mic, Navigation, X, Clock, Flame,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { api } from '@/lib/api'
-import { CATEGORIES } from '@/lib/mock-leads'
+import { CATEGORIES } from "@/lib/categories";
+
 import DemoPreview from '@/components/demo-preview'
 
+// ---------------------------------------------------------------------------
+// Static config — all local, no network calls
+// ---------------------------------------------------------------------------
+const RECENTS_KEY = 'recent-searches'
+const MAX_RECENTS = 6
+
+const QUICK_SUGGESTIONS = [
+  "Restaurants near me",
+  "Restaurants in Delhi",
+  "Restaurants in Kushinagar",
+  "Restaurants in Durgapur",
+  "Cafes near me",
+  "Gyms near me",
+  "Dentists near me",
+  "Hospitals near me",
+  "Clinics near me",
+  "Hotels in Delhi",
+  "Hotels in Mumbai",
+  "Hotels in Lucknow",
+  "Lawyers near me",
+  "Salons near me",
+  "Barbers near me",
+  "Jewellery shops",
+  "Mobile shops",
+  "Electronics shops",
+  "Furniture stores",
+  "Businesses with no website",
+  "Businesses with poor Google rating",
+  "Businesses with no AI chatbot",
+]
+
+const TRENDING_SEARCHES = [
+  'Restaurants with no website',
+  'Gyms with low ratings',
+  'Dentists near me',
+  'Salons with under 4★ rating',
+  'Cafes with no Instagram',
+]
+
+function normalizeCategories(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map(c => (typeof c === 'string' ? { value: c, label: c } : { value: c.value ?? c.label, label: c.label ?? c.value }))
+    .filter(c => c.value)
+}
+
+// ---------------------------------------------------------------------------
+// ScoreRing / LeadCard — unchanged
+// ---------------------------------------------------------------------------
 function ScoreRing({ score }) {
   const r = 42
   const c = 2 * Math.PI * r
@@ -109,26 +160,198 @@ function LeadCard({ lead, onScore, onGenerateDemo, onSave, score, scoring, gener
   )
 }
 
+// ---------------------------------------------------------------------------
+// Skeleton card shown while a search is in flight
+// ---------------------------------------------------------------------------
+function LeadCardSkeleton() {
+  return (
+    <Card className="border-border/60">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-2/3 rounded bg-muted animate-pulse" />
+            <div className="h-3 w-1/2 rounded bg-muted animate-pulse" />
+            <div className="h-3 w-1/3 rounded bg-muted animate-pulse mt-3" />
+          </div>
+          <div className="h-24 w-24 rounded-full bg-muted animate-pulse shrink-0" />
+        </div>
+        <div className="mt-4 flex gap-2">
+          <div className="h-8 w-32 rounded-md bg-muted animate-pulse" />
+          <div className="h-8 w-28 rounded-md bg-muted animate-pulse" />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 export default function LeadFinder() {
-  const [city, setCity] = useState('Austin')
-  const [category, setCategory] = useState('restaurant')
+  const [query, setQuery] = useState("")
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(false)
-  const [scores, setScores] = useState({}) // { leadId: scoreObj }
-  const [scoring, setScoring] = useState({}) // { leadId: bool }
+  const [scores, setScores] = useState({})
+  const [scoring, setScoring] = useState({})
   const [generating, setGenerating] = useState({})
-  const [demo, setDemo] = useState(null) // { demo, business, id }
+  const [demo, setDemo] = useState(null)
   const [demoOpen, setDemoOpen] = useState(false)
 
-  async function search() {
-    if (!city.trim()) return toast.error('Enter a city')
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [selectedIndex, setSelectedIndex] = useState(-1)
+  const [recentSearches, setRecentSearches] = useState([])
+  const [locating, setLocating] = useState(false)
+
+  const wrapperRef = useRef(null)
+  const categories = normalizeCategories(CATEGORIES)
+
+  // Load recent searches once on mount
+  useEffect(() => {
+    try {
+      const recent = JSON.parse(localStorage.getItem(RECENTS_KEY) || "[]")
+      setRecentSearches(recent)
+    } catch {
+      setRecentSearches([])
+    }
+  }, [])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setShowDropdown(false)
+        setSelectedIndex(-1)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  function saveRecentSearch(term) {
+    if (!term.trim()) return
+    setRecentSearches(prev => {
+      const next = [term, ...prev.filter(t => t.toLowerCase() !== term.toLowerCase())].slice(0, MAX_RECENTS)
+      try { localStorage.setItem(RECENTS_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
+  function clearRecentSearches() {
+    setRecentSearches([])
+    try { localStorage.removeItem(RECENTS_KEY) } catch {}
+  }
+
+  // 100% local autocomplete — no API call, no debounce needed
+  const isTyping = query.trim().length >= 2
+  const localMatches = isTyping
+    ? QUICK_SUGGESTIONS.filter(item => item.toLowerCase().includes(query.toLowerCase())).slice(0, 6)
+    : []
+
+  const dropdownItems = isTyping
+    ? localMatches.map(s => ({ type: 'suggestion', label: s }))
+    : [
+        ...recentSearches.map(s => ({ type: 'recent', label: s })),
+        ...TRENDING_SEARCHES.map(s => ({ type: 'trending', label: s })),
+      ]
+
+  function handleQueryChange(e) {
+    setQuery(e.target.value)
+    setSelectedIndex(-1)
+    setShowDropdown(true)
+  }
+
+  function runSearch(term) {
+    const value = (term ?? query).trim()
+    if (!value) return toast.error("Enter a search")
+    setQuery(value)
+    setShowDropdown(false)
+    setSelectedIndex(-1)
+    search(value)
+  }
+
+  function handleKeyDown(e) {
+    if (!showDropdown || dropdownItems.length === 0) {
+      if (e.key === 'Enter') runSearch()
+      return
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setSelectedIndex(i => (i + 1) % dropdownItems.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setSelectedIndex(i => (i <= 0 ? dropdownItems.length - 1 : i - 1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (selectedIndex >= 0 && dropdownItems[selectedIndex]) {
+        runSearch(dropdownItems[selectedIndex].label)
+      } else {
+        runSearch()
+      }
+    } else if (e.key === 'Escape') {
+      setShowDropdown(false)
+      setSelectedIndex(-1)
+    }
+  }
+
+  function useCurrentLocation() {
+    if (!navigator.geolocation) {
+      return toast.error("Geolocation isn't supported by this browser")
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`)
+          const data = await res.json()
+          const city = data?.address?.city || data?.address?.town || data?.address?.county || data?.address?.state
+          if (city) {
+            setQuery(q => (q.trim() ? q : `Businesses near ${city}`))
+            toast.success(`Location set to ${city}`)
+          } else {
+            toast.error("Couldn't resolve your city, try entering it manually")
+          }
+        } catch {
+          toast.error("Couldn't look up your location")
+        } finally {
+          setLocating(false)
+        }
+      },
+      () => {
+        setLocating(false)
+        toast.error("Location access denied")
+      }
+    )
+  }
+
+  async function search(termOverride) {
+    const term = (termOverride ?? query).trim()
+    if (!term) {
+      return toast.error("Enter a search")
+    }
+
     setLoading(true)
     setScores({})
+    saveRecentSearch(term)
+
     try {
-      const res = await api('/leads/search', { method: 'POST', body: { city: city.trim(), category, limit: 12 } })
+      const parsed = await api("/search/ai", {
+        method: "POST",
+        body: { query: term },
+      })
+
+      const res = await api("/leads/search", {
+        method: "POST",
+        body: parsed,
+      })
+
       setLeads(res.leads)
       toast.success(`Found ${res.count} businesses`)
-    } catch (e) { toast.error(e.message) } finally { setLoading(false) }
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function scoreLead(lead) {
@@ -170,22 +393,128 @@ export default function LeadFinder() {
         <p className="text-muted-foreground text-sm mt-1">Discover local businesses and let AI score their opportunity.</p>
       </div>
 
-      <Card className="border-border/60">
+      <Card className="border-border/60 overflow-visible">
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row gap-3">
-            <div className="flex-1 relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input value={city} onChange={e => setCity(e.target.value)} placeholder="City (e.g. Austin, Miami, Bangalore)" className="pl-9" onKeyDown={e => e.key === 'Enter' && search()} />
+            {/* Search bar + dropdown */}
+            <div className="flex-1 relative" ref={wrapperRef}>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={query}
+                placeholder="Search businesses... e.g. Restaurants near Kushinagar with no website"
+                className="pl-9 pr-20"
+                onChange={handleQueryChange}
+                onFocus={() => setShowDropdown(true)}
+                onKeyDown={handleKeyDown}
+              />
+              <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                {query && (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    className="h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+                    onClick={() => setQuery('')}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  aria-label="Voice search"
+                  className="h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+                  onClick={() => toast.info('Voice search is coming soon')}
+                >
+                  <Mic className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Use current location"
+                  disabled={locating}
+                  className="h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
+                  onClick={useCurrentLocation}
+                >
+                  {locating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Navigation className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+
+              <AnimatePresence>
+                {showDropdown && dropdownItems.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    className="absolute z-50 mt-2 w-full rounded-xl border bg-background shadow-xl overflow-hidden"
+                  >
+                    {!isTyping && recentSearches.length > 0 && (
+                      <div className="border-b border-border/60">
+                        <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Recent</span>
+                          <button className="text-[10px] text-muted-foreground hover:text-foreground" onClick={clearRecentSearches}>Clear</button>
+                        </div>
+                        {recentSearches.map((item, idx) => (
+                          <button
+                            key={`recent-${item}`}
+                            className={`w-full text-left px-4 py-2.5 flex items-center gap-2 text-sm hover:bg-accent ${selectedIndex === idx ? 'bg-accent' : ''}`}
+                            onClick={() => runSearch(item)}
+                          >
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> {item}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {!isTyping && (
+                      <div>
+                        <div className="px-4 pt-3 pb-1">
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Trending</span>
+                        </div>
+                        {TRENDING_SEARCHES.map((item, idx) => {
+                          const flatIndex = recentSearches.length + idx
+                          return (
+                            <button
+                              key={`trend-${item}`}
+                              className={`w-full text-left px-4 py-2.5 flex items-center gap-2 text-sm hover:bg-accent ${selectedIndex === flatIndex ? 'bg-accent' : ''}`}
+                              onClick={() => runSearch(item)}
+                            >
+                              <Flame className="h-3.5 w-3.5 text-orange-500 shrink-0" /> {item}
+                            </button>
+                          )
+                        })}
+                        {categories.length > 0 && (
+                          <div className="px-4 py-3 flex flex-wrap gap-1.5 border-t border-border/60">
+                            {categories.slice(0, 8).map(c => (
+                              <button
+                                key={c.value}
+                                onClick={() => runSearch(c.label)}
+                                className="text-xs px-2.5 py-1 rounded-full border border-border/60 hover:border-violet-500/40 hover:text-violet-400 transition-colors"
+                              >
+                                {c.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {isTyping && localMatches.map((item, idx) => (
+                      <button
+                        key={`sugg-${item}-${idx}`}
+                        className={`w-full text-left px-4 py-3 flex items-center gap-2 text-sm hover:bg-accent ${selectedIndex === idx ? 'bg-accent' : ''}`}
+                        onClick={() => runSearch(item)}
+                      >
+                        <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> {item}
+                      </button>
+                    ))}
+
+                    {isTyping && localMatches.length === 0 && (
+                      <div className="px-4 py-3 text-xs text-muted-foreground">No matches — press Enter to search anyway.</div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-            <div className="md:w-56">
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.emoji} {c.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button onClick={search} disabled={loading} className="bg-gradient-to-r from-violet-500 to-blue-500 text-white border-0 shadow-lg shadow-violet-500/20">
+
+            <Button onClick={() => runSearch()} disabled={loading} className="bg-gradient-to-r from-violet-500 to-blue-500 text-white border-0 shadow-lg shadow-violet-500/20">
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
               Search
             </Button>
@@ -193,12 +522,30 @@ export default function LeadFinder() {
               <Button variant="outline" onClick={scoreAll}><Zap className="h-4 w-4 mr-2" />Score all with AI</Button>
             )}
           </div>
-          <div className="text-xs text-muted-foreground mt-3 flex items-center gap-1.5">
-            <TrendingUp className="h-3 w-3" />
-            Using curated mock dataset. Wire up your Google Places API key later in <code className="bg-muted px-1 rounded">/lib/mock-leads.js</code>.
-          </div>
+
+          {/* Quick category chips — one tap to search */}
+          {categories.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {categories.slice(0, 10).map(c => (
+                <button
+                  key={`chip-${c.value}`}
+                  onClick={() => runSearch(c.label)}
+                  className="text-xs px-2.5 py-1 rounded-full bg-muted/60 hover:bg-violet-500/10 hover:text-violet-400 transition-colors"
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Loading skeletons */}
+      {loading && leads.length === 0 && (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => <LeadCardSkeleton key={i} />)}
+        </div>
+      )}
 
       <AnimatePresence>
         {leads.length > 0 && (
