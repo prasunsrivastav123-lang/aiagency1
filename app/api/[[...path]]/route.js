@@ -6,6 +6,7 @@ import { callGemini } from '@/lib/gemini'
 import bcrypt from 'bcryptjs'
 import { parseSearch } from "@/lib/search-parser";
 import { OAuth2Client } from 'google-auth-library'
+
 const googleClient = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID
 )
@@ -431,307 +432,70 @@ try {
 
 } catch (e) {
 
-  console.log("Gemini unavailable, using local score");
+    console.log("Gemini unavailable");
 
-  const localScore =
-    (!biz.website ? 40 : 0) +
-    (biz.phone ? 15 : 0) +
-    (biz.category ? 15 : 0) +
-    (biz.address ? 15 : 0) +
-    15;
+    const localScore =
+        (!biz.website ? 40 : 0) +
+        (biz.phone ? 15 : 0) +
+        (biz.category ? 15 : 0) +
+        (biz.address ? 15 : 0) +
+        15;
 
-  scored = {
-    score: Math.min(localScore, 100),
-    verdict: "warm",
-    summary:
-      "Generated locally because Gemini is unavailable.",
-    breakdown: {
-      digitalPresence: !biz.website ? 90 : 40,
-      businessSignal: 70,
-      aiFit: 80,
-      reachability: biz.phone ? 90 : 40,
-    },
-    opportunities: [
-      "Professional Website",
-      "WhatsApp Automation",
-      "Google Business Optimization",
-    ],
-    pitchAngle:
-      "Show a modern demo website to increase conversions.",
-  };
+    return ok({
+
+        score: Math.min(localScore,100),
+
+        verdict:"warm",
+
+        summary:"Generated locally because Gemini is unavailable.",
+
+        breakdown:{
+            digitalPresence:!biz.website?90:40,
+            businessSignal:70,
+            aiFit:80,
+            reachability:biz.phone?90:40
+        },
+
+        opportunities:[
+            "Professional Website",
+            "WhatsApp Automation",
+            "Google Business Optimization"
+        ],
+
+        pitchAngle:
+            "Show a free demo website to increase conversions."
+
+    });
 
 }
-
-// Save score (works for Gemini AND fallback)
-
-await db.collection("lead_scores").updateOne(
-  {
-    businessId: biz.id,
-  },
-  {
-    $set: {
-      businessId: biz.id,
-      business: biz,
-      score: scored,
-      updatedAt: new Date(),
-    },
-  },
-  {
-    upsert: true,
-  }
-);
 
 return ok(scored);
     }
+// ======================================
+// GET LEADS
+// ======================================
 
-    // GET /api/leads (saved to CRM)
-    if (route === '/leads' && method === 'GET') {
-      const t = verifyToken(request); if (!t) return err('Unauthorized', 401)
-      const rows = await db.collection('saved_leads').find({ userId: t.id }).sort({ createdAt: -1 }).limit(200).toArray()
-      return ok({ leads: rows.map(strip) })
-    }
+if (route === "/leads" && method === "GET") {
 
-    // POST /api/leads (save to CRM)
-    if (route === '/leads' && method === 'POST') {
-      const t = verifyToken(request); if (!t) return err('Unauthorized', 401)
-      const b = await request.json()
-      const doc = { id: uuidv4(), userId: t.id, business: b.business, score: b.score || null, stage: 'new', notes: '', createdAt: new Date() }
-      await db.collection('saved_leads').insertOne(doc)
-      return ok(strip(doc))
-    }
+    const t = verifyToken(request);
 
-    // PATCH /api/leads/:id (update stage / notes)
-    if (route.startsWith('/leads/') && method === 'PATCH') {
-      const t = verifyToken(request); if (!t) return err('Unauthorized', 401)
-      const id = route.split('/')[2]
-      const b = await request.json()
-      const upd = {}
-      if (b.stage) upd.stage = b.stage
-      if (b.notes !== undefined) upd.notes = b.notes
-      await db.collection('saved_leads').updateOne({ id, userId: t.id }, { $set: upd })
-      const row = await db.collection('saved_leads').findOne({ id })
-      return ok(strip(row))
-    }
+    if (!t)
+        return err("Unauthorized",401);
 
-    // ====== DEMO GENERATOR ======
-    // POST /api/demo/generate { business }
-    if (route === '/demo/generate' && method === 'POST') {
-      const b = await request.json()
-      const biz = b.business
-      if (!biz?.name) return err('business.name required')
+    const leads =
+        await db
+        .collection("saved_leads")
+        .find({ userId:t.id })
+        .sort({createdAt:-1})
+        .toArray();
 
-      const prompt = `You are a senior brand designer and copywriter. Generate a complete demo website for a real local business so that a sales agent can pitch: "Look, we already built you a preview!".
+    return ok({
 
-Business:
-${JSON.stringify(biz, null, 2)}
+        leads:leads.map(strip)
 
-Return ONLY strict JSON with this exact schema (no prose, no markdown):
-{
-  "brand": {
-    "tagline": "<short tagline>",
-    "primaryColor": "<hex color, e.g. #6D28D9>",
-    "accentColor": "<hex color>",
-    "vibe": "<one word: modern, warm, luxurious, energetic, minimal, playful>"
-  },
-  "hero": {
-    "headline": "<punchy 6-10 words>",
-    "subheadline": "<supporting sentence>",
-    "ctaPrimary": "<button label>",
-    "ctaSecondary": "<button label>"
-  },
-  "about": {
-    "title": "<title>",
-    "body": "<2-3 sentence description>"
-  },
-  "services": [
-    { "title": "<service>", "description": "<1 sentence>", "icon": "<lucide-react icon name, e.g. Utensils, Scissors, Dumbbell>" }
-  ],
-  "features": [
-    { "title": "<feature>", "description": "<1 sentence>" }
-  ],
-  "testimonials": [
-    { "name": "<name>", "role": "<role or city>", "quote": "<quote>", "rating": 5 }
-  ],
-  "faq": [
-    { "q": "<question>", "a": "<answer>" }
-  ],
-  "cta": {
-    "headline": "<final push headline>",
-    "button": "<button label>"
-  },
-  "contact": {
-    "phone": "${biz.phone || ''}",
-    "email": "${biz.email || ''}",
-    "address": "${biz.address || ''}"
-  }
-}
-
-Rules:
-- Provide EXACTLY 4 services, 4 features, 3 testimonials, 5 faqs.
-- Use lucide-react icon names only (Utensils, Coffee, Scissors, Dumbbell, HeartPulse, Home, Car, Sparkles, Star, Users, Clock, MapPin, Award, ShieldCheck, Phone).
-- Match tone to the business category and vibe.`
-
-     let demo;
-
-try {
-
-  demo = await callGemini(
-    [
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-    {
-      jsonMode: true,
-      temperature: 0.85,
-    }
-  );
-
-} catch (e) {
-
-  console.log("Gemini unavailable, using local demo");
-
-  demo = {
-
-    brand: {
-      tagline: `Welcome to ${biz.name}`,
-      primaryColor: "#7C3AED",
-      accentColor: "#2563EB",
-      vibe: "modern",
-    },
-
-    hero: {
-      headline: `${biz.name}`,
-      subheadline:
-        "Grow your business with a modern website and AI automation.",
-      ctaPrimary: "Book Now",
-      ctaSecondary: "Call Us",
-    },
-
-    about: {
-      title: "About Us",
-      body:
-        `${biz.name} is one of the trusted businesses in ${biz.city}. We provide high-quality service with customer satisfaction as our priority.`,
-    },
-
-    services: [
-      {
-        title: "Premium Service",
-        description: "Professional service for every customer.",
-        icon: "Sparkles",
-      },
-      {
-        title: "Fast Support",
-        description: "Quick response and assistance.",
-        icon: "Phone",
-      },
-      {
-        title: "Experienced Team",
-        description: "Skilled professionals.",
-        icon: "Users",
-      },
-      {
-        title: "Affordable Pricing",
-        description: "Best value for money.",
-        icon: "Award",
-      },
-    ],
-
-    features: [
-      {
-        title: "Trusted Business",
-        description: "Reliable and highly recommended.",
-      },
-      {
-        title: "Fast Response",
-        description: "Quick customer support.",
-      },
-      {
-        title: "Quality Service",
-        description: "Professional work guaranteed.",
-      },
-      {
-        title: "Customer Satisfaction",
-        description: "Focused on great experiences.",
-      },
-    ],
-
-    testimonials: [
-      {
-        name: "Rahul",
-        role: "Customer",
-        quote: "Amazing service!",
-        rating: 5,
-      },
-      {
-        name: "Priya",
-        role: "Customer",
-        quote: "Highly recommended.",
-        rating: 5,
-      },
-      {
-        name: "Amit",
-        role: "Customer",
-        quote: "Would definitely visit again.",
-        rating: 5,
-      },
-    ],
-
-    faq: [
-      {
-        q: "Do you accept bookings?",
-        a: "Yes.",
-      },
-      {
-        q: "Where are you located?",
-        a: biz.address || "",
-      },
-      {
-        q: "Can I contact you online?",
-        a: "Yes.",
-      },
-      {
-        q: "Do you provide support?",
-        a: "Absolutely.",
-      },
-      {
-        q: "How do I get started?",
-        a: "Call or visit us.",
-      },
-    ],
-
-    cta: {
-      headline: "Ready to Get Started?",
-      button: "Contact Now",
-    },
-
-    contact: {
-      phone: biz.phone || "",
-      email: biz.email || "",
-      address: biz.address || "",
-    },
-
-  };
+    });
 
 }
-
-const id = uuidv4();
-
-await db.collection("demos").insertOne({
-  id,
-  business: biz,
-  demo,
-  createdAt: new Date(),
-});
-
-return ok({
-  id,
-  demo,
-  business: biz,
-});
-    }
-
 // =====================================================
 // OUTREACH GENERATOR
 // POST /api/outreach/generate
@@ -951,6 +715,100 @@ AgencyOS AI`,
 
 }
 
+// =====================================================
+// GENERATE DEMO
+// POST /api/demo/generate
+// =====================================================
+
+if (route === "/demo/generate" && method === "POST") {
+
+    const body = await request.json();
+
+    const biz = body.business;
+
+    if (!biz?.name)
+        return err("business.name required");
+
+    const prompt = `
+Generate a modern website for this business.
+
+Business:
+${JSON.stringify(biz, null, 2)}
+
+Return STRICT JSON only.
+`;
+
+    try {
+
+        const demo = await callGemini(
+            [
+                {
+                    role: "user",
+                    content: prompt,
+                },
+            ],
+            {
+                jsonMode: true,
+                temperature: 0.8,
+            }
+        );
+
+        return ok(demo);
+
+    } catch (e) {
+
+        console.log("Gemini unavailable");
+
+        return ok({
+            fallbackRequired: true,
+            business: biz,
+        });
+
+    }
+
+}
+// =====================================================
+// SAVE LOCAL DEMO
+// POST /api/demo/save-local
+// =====================================================
+
+if (route === "/demo/save-local" && method === "POST") {
+
+  const body = await request.json();
+
+  if (!body.business)
+    return err("Business required");
+
+  if (!body.demo)
+    return err("Demo required");
+
+  const id = uuidv4();
+
+  await db.collection("demos").insertOne({
+
+    id,
+
+    business: body.business,
+
+    demo: body.demo,
+
+    source: "template",
+
+    createdAt: new Date(),
+
+  });
+
+  return ok({
+
+    id,
+
+    business: body.business,
+
+    demo: body.demo,
+
+  });
+
+}
 
     // GET /api/demo/:id
     if (route.startsWith('/demo/') && method === 'GET' && path[0] === 'demo' && path[1]) {

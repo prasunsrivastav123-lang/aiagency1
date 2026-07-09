@@ -20,6 +20,9 @@ Map,
 Copy,
 Heart,
 } from "lucide-react";
+//import GeminiFallbackModal from "@/components/GeminiFallbackModal";
+import { renderTemplate } from "@/lib/demoTemplates/renderTemplate";
+import GeminiFallbackModal from "@/components/GeminiFallbackModal";
 import DemoPreview from '@/components/demo-preview'
 import SearchDropdown from "@/components/search/SearchDropdown";
 import { saveHistory } from "@/lib/search/history";
@@ -73,23 +76,65 @@ function normalizeCategories(raw) {
 // ScoreRing / LeadCard — unchanged
 // ---------------------------------------------------------------------------
 function ScoreRing({ score }) {
+
+  const safeScore = Math.max(
+    0,
+    Math.min(100, Number(score) || 0)
+  )
+
   const r = 42
+
   const c = 2 * Math.PI * r
-  const offset = c - (score / 100) * c
-  const color = score >= 80 ? 'text-emerald-500' : score >= 60 ? 'text-violet-500' : score >= 40 ? 'text-amber-500' : 'text-slate-400'
+
+  const offset = c - (safeScore / 100) * c
+
+  const color =
+    safeScore >= 80
+      ? "text-emerald-500"
+      : safeScore >= 60
+      ? "text-violet-500"
+      : safeScore >= 40
+      ? "text-amber-500"
+      : "text-slate-400"
+
   return (
     <div className="relative h-24 w-24">
+
       <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-        <circle cx="50" cy="50" r={r} strokeWidth="8" className="stroke-muted fill-none" />
-        <circle cx="50" cy="50" r={r} strokeWidth="8" strokeLinecap="round" className={`${color} fill-none transition-all duration-1000`} strokeDasharray={c} strokeDashoffset={offset} stroke="currentColor" />
+
+        <circle
+          cx="50"
+          cy="50"
+          r={r}
+          strokeWidth="8"
+          className="stroke-muted fill-none"
+        />
+
+        <circle
+          cx="50"
+          cy="50"
+          r={r}
+          strokeWidth="8"
+          strokeLinecap="round"
+          className={`${color} fill-none transition-all duration-1000`}
+          strokeDasharray={String(c)}
+          strokeDashoffset={String(offset)}
+          stroke="currentColor"
+        />
+
       </svg>
+
       <div className={`absolute inset-0 grid place-items-center ${color}`}>
-        <div className="text-2xl font-bold">{score}</div>
+
+        <div className="text-2xl font-bold">
+          {safeScore}
+        </div>
+
       </div>
+
     </div>
   )
 }
-
 function LeadCard({ lead, onScore, onGenerateDemo, onSave, score, scoring, generating }) {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} layout>
@@ -163,12 +208,9 @@ function LeadCard({ lead, onScore, onGenerateDemo, onSave, score, scoring, gener
 
     )}
 
-    {score && (
-
-      <ScoreRing score={score.score}/>
-
-    )}
-
+  {typeof score?.score === "number" && (
+  <ScoreRing score={score.score} />
+)}
   </div>
 
 </div>
@@ -345,7 +387,9 @@ const [scoring, setScoring] = useState({})
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const [recentSearches, setRecentSearches] = useState([])
   const [locating, setLocating] = useState(false)
+const [fallbackOpen,setFallbackOpen]=useState(false);
 
+const [fallbackLead,setFallbackLead]=useState(null);
   const wrapperRef = useRef(null)
   const categories = normalizeCategories(CATEGORIES)
 
@@ -479,13 +523,23 @@ const [scoring, setScoring] = useState({})
     saveRecentSearch(term)
 
     try {
-    const parsed = parseSearch(term);
+    let parsed = parseSearch(term);
 
-console.log(parsed);
+if (!parsed.city && !parsed.category) {
 
-if (!parsed.city) {
-  toast.error("Please enter a city.");
-  return;
+parsed = {
+
+city: term,
+
+category: "restaurant"
+
+};
+
+}
+else if (!parsed.city) {
+
+parsed.city = term;
+
 }
 
 if (!parsed.category) {
@@ -634,6 +688,18 @@ async function scoreLead(lead) {
           },
         }
       )
+   if (res.fallbackRequired) {
+
+    toast.dismiss("gen");
+
+    setFallbackLead(business);
+
+    setFallbackOpen(true);
+
+    return;
+
+}
+
 
     setDemo(res)
 
@@ -667,6 +733,26 @@ async function scoreLead(lead) {
     }))
 
   }
+
+}
+
+async function handleFallbackCategory(category) {
+
+    const demo = renderTemplate(category, fallbackLead);
+
+   const saved = await api("/demo/save-local", {
+    method: "POST",
+    body: {
+        business: fallbackLead,
+        demo,
+    },
+});
+
+    setFallbackOpen(false);
+
+    setDemo(saved);
+
+    setDemoOpen(true);
 
 }
 async function saveLead(lead, score) {
@@ -736,29 +822,36 @@ async function saveLead(lead, score) {
             {/* Search bar + dropdown */}
             <div className="flex-1 relative" ref={wrapperRef}>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
+   <Input
   value={query}
-  placeholder="Search businesses..."
+  placeholder="Restaurants in Delhi..."
   className="pl-10"
   onFocus={() => setShowDropdown(true)}
-  onBlur={() =>
-    setTimeout(() => setShowDropdown(false), 200)
-  }
-  onChange={(e) => setQuery(e.target.value)}
+  onChange={(e) => {
+    setQuery(e.target.value)
+    setShowDropdown(true)
+  }}
+  onKeyDown={(e) => {
+    if (e.key === "Enter") {
+      runSearch()
+    }
+  }}
 />
 
 <SearchDropdown
   query={query}
   visible={showDropdown}
-  onSelect={(text) => {
+ onSelect={(text) => {
 
-    setQuery(text);
+setQuery(text)
 
-    saveHistory(text);
+saveHistory(text)
 
-    setShowDropdown(false);
+setShowDropdown(false)
 
-  }}
+runSearch(text)
+
+}}
 />
               <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
                 {query && (
@@ -790,81 +883,7 @@ async function saveLead(lead, score) {
                 </button>
               </div>
 
-              <AnimatePresence>
-                {showDropdown && dropdownItems.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    className="absolute z-50 mt-2 w-full rounded-xl border bg-background shadow-xl overflow-hidden"
-                  >
-                    {!isTyping && recentSearches.length > 0 && (
-                      <div className="border-b border-border/60">
-                        <div className="px-4 pt-3 pb-1 flex items-center justify-between">
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Recent</span>
-                          <button className="text-[10px] text-muted-foreground hover:text-foreground" onClick={clearRecentSearches}>Clear</button>
-                        </div>
-                        {recentSearches.map((item, idx) => (
-                          <button
-                            key={`recent-${item}`}
-                            className={`w-full text-left px-4 py-2.5 flex items-center gap-2 text-sm hover:bg-accent ${selectedIndex === idx ? 'bg-accent' : ''}`}
-                            onClick={() => runSearch(item)}
-                          >
-                            <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> {item}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {!isTyping && (
-                      <div>
-                        <div className="px-4 pt-3 pb-1">
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Trending</span>
-                        </div>
-                        {TRENDING_SEARCHES.map((item, idx) => {
-                          const flatIndex = recentSearches.length + idx
-                          return (
-                            <button
-                              key={`trend-${item}`}
-                              className={`w-full text-left px-4 py-2.5 flex items-center gap-2 text-sm hover:bg-accent ${selectedIndex === flatIndex ? 'bg-accent' : ''}`}
-                              onClick={() => runSearch(item)}
-                            >
-                              <Flame className="h-3.5 w-3.5 text-orange-500 shrink-0" /> {item}
-                            </button>
-                          )
-                        })}
-                        {categories.length > 0 && (
-                          <div className="px-4 py-3 flex flex-wrap gap-1.5 border-t border-border/60">
-                            {categories.slice(0, 8).map(c => (
-                              <button
-                                key={c.value}
-                                onClick={() => runSearch(c.label)}
-                                className="text-xs px-2.5 py-1 rounded-full border border-border/60 hover:border-violet-500/40 hover:text-violet-400 transition-colors"
-                              >
-                                {c.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {isTyping && localMatches.map((item, idx) => (
-                      <button
-                        key={`sugg-${item}-${idx}`}
-                        className={`w-full text-left px-4 py-3 flex items-center gap-2 text-sm hover:bg-accent ${selectedIndex === idx ? 'bg-accent' : ''}`}
-                        onClick={() => runSearch(item)}
-                      >
-                        <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> {item}
-                      </button>
-                    ))}
-
-                    {isTyping && localMatches.length === 0 && (
-                      <div className="px-4 py-3 text-xs text-muted-foreground">No matches — press Enter to search anyway.</div>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+         
             </div>
 
             <Button onClick={() => runSearch()} disabled={loading} className="bg-gradient-to-r from-violet-500 to-blue-500 text-white border-0 shadow-lg shadow-violet-500/20">
@@ -936,6 +955,11 @@ async function saveLead(lead, score) {
           </div>
         </DialogContent>
       </Dialog>
+      <GeminiFallbackModal
+    open={fallbackOpen}
+    onClose={() => setFallbackOpen(false)}
+    onSelectCategory={handleFallbackCategory}
+/>
     </div>
   )
 }
