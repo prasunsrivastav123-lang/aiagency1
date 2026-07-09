@@ -14,9 +14,15 @@ import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { api } from '@/lib/api'
 import { CATEGORIES } from "@/lib/categories";
-
+import { parseSearch } from "@/lib/search/parser";
+import {
+Map,
+Copy,
+Heart,
+} from "lucide-react";
 import DemoPreview from '@/components/demo-preview'
-
+import SearchDropdown from "@/components/search/SearchDropdown";
+import { saveHistory } from "@/lib/search/history";
 // ---------------------------------------------------------------------------
 // Static config — all local, no network calls
 // ---------------------------------------------------------------------------
@@ -87,32 +93,85 @@ function ScoreRing({ score }) {
 function LeadCard({ lead, onScore, onGenerateDemo, onSave, score, scoring, generating }) {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} layout>
-      <Card className="border-border/60 hover:border-violet-500/40 transition-all group">
+<Card className="border border-border/60 rounded-2xl hover:border-violet-500/40 hover:shadow-xl hover:shadow-violet-500/10 transition-all duration-300">
         <CardContent className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold truncate">{lead.name}</h3>
-                {!lead.website && <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-500">No website</Badge>}
-              </div>
-              <div className="text-sm text-muted-foreground flex items-center gap-1.5 mt-1">
-                <MapPin className="h-3 w-3" /> {lead.address}
-              </div>
-              <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
-                <div className="flex items-center gap-1"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {lead.rating} · {lead.reviewCount}</div>
-                {lead.phone && <div className="flex items-center gap-1"><Phone className="h-3 w-3" /> {lead.phone.slice(0,17)}</div>}
-                {lead.hasInstagram && <Instagram className="h-3 w-3" />}
-                {lead.hasFacebook && <Facebook className="h-3 w-3" />}
-                {lead.website && <a href={lead.website} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-foreground"><Globe className="h-3 w-3" /> site</a>}
-              </div>
-            </div>
-            {score && (
-              <div className="shrink-0 text-center">
-                <ScoreRing score={score.score} />
-                <Badge className={`mt-1 text-[10px] uppercase ${score.verdict === 'on-fire' ? 'bg-red-500/20 text-red-400 border-red-500/30' : score.verdict === 'hot' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' : score.verdict === 'warm' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-slate-500/20 text-slate-400 border-slate-500/30'} border`} variant="outline">{score.verdict}</Badge>
-              </div>
-            )}
-          </div>
+         <div className="flex justify-between gap-4">
+
+  <div className="flex-1">
+
+    <h2 className="text-xl font-bold">
+      {lead.name}
+    </h2>
+
+    <p className="flex gap-2 mt-2 text-muted-foreground">
+
+      <MapPin className="h-4 w-4 mt-1 shrink-0"/>
+
+      <span>{lead.address}</span>
+
+    </p>
+
+    <div className="flex items-center gap-4 mt-4 text-sm">
+
+      <div className="flex items-center gap-1">
+
+        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400"/>
+
+        {lead.rating || "N/A"}
+
+      </div>
+
+      <div>
+
+        ({lead.reviewCount || 0})
+
+      </div>
+
+      {lead.phone && (
+
+        <div className="flex items-center gap-1">
+
+          <Phone className="h-4 w-4"/>
+
+          {lead.phone}
+
+        </div>
+
+      )}
+
+    </div>
+
+  </div>
+
+  <div className="flex flex-col items-end gap-2">
+
+    {lead.website ? (
+
+      <Badge className="bg-green-500/20 text-green-400 border-green-500/20">
+
+        Website
+
+      </Badge>
+
+    ) : (
+
+      <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/20">
+
+        No Website
+
+      </Badge>
+
+    )}
+
+    {score && (
+
+      <ScoreRing score={score.score}/>
+
+    )}
+
+  </div>
+
+</div>
 
           <AnimatePresence>
             {score && (
@@ -140,20 +199,104 @@ function LeadCard({ lead, onScore, onGenerateDemo, onSave, score, scoring, gener
             )}
           </AnimatePresence>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {!score ? (
-              <Button size="sm" onClick={() => onScore(lead)} disabled={scoring} className="bg-gradient-to-r from-violet-500 to-blue-500 text-white border-0">
-                {scoring ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> : <Sparkles className="h-3.5 w-3.5 mr-2" />}
-                Score with AI
-              </Button>
-            ) : (
-              <Button size="sm" onClick={() => onGenerateDemo(lead)} disabled={generating} className="bg-gradient-to-r from-violet-500 to-blue-500 text-white border-0">
-                {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> : <Rocket className="h-3.5 w-3.5 mr-2" />}
-                Generate demo site
-              </Button>
-            )}
-            <Button size="sm" variant="outline" onClick={() => onSave(lead, score)}><Save className="h-3.5 w-3.5 mr-2" />Save to CRM</Button>
-          </div>
+         <div className="grid grid-cols-2 gap-3 mt-6">
+
+  {!score ? (
+
+    <Button
+      onClick={() => onScore(lead)}
+      disabled={scoring}
+    >
+
+      {scoring ? (
+
+        <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
+
+      ) : (
+
+        <Sparkles className="mr-2 h-4 w-4"/>
+
+      )}
+
+      Score AI
+
+    </Button>
+
+  ) : (
+
+    <Button
+      onClick={() => onGenerateDemo(lead)}
+      disabled={generating}
+    >
+
+      {generating ? (
+
+        <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
+
+      ) : (
+
+        <Rocket className="mr-2 h-4 w-4"/>
+
+      )}
+
+      Generate Demo
+
+    </Button>
+
+  )}
+
+  <Button
+    variant="outline"
+    onClick={() => onSave(lead, score)}
+  >
+
+    <Heart className="mr-2 h-4 w-4"/>
+
+    Save CRM
+
+  </Button>
+
+  <Button
+    variant="outline"
+    onClick={() => {
+
+      const url =
+        lead.mapsUrl ||
+        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          lead.name + " " + lead.address
+        )}`
+
+      window.open(url,"_blank")
+
+    }}
+  >
+
+    <Map className="mr-2 h-4 w-4"/>
+
+    Open Maps
+
+  </Button>
+
+  <Button
+    variant="outline"
+    onClick={() => {
+
+      navigator.clipboard.writeText(
+        lead.phone || ""
+      )
+
+      toast.success("Phone copied!")
+
+    }}
+  >
+
+    <Copy className="mr-2 h-4 w-4"/>
+
+    Copy Phone
+
+  </Button>
+
+</div>
         </CardContent>
       </Card>
     </motion.div>
@@ -190,9 +333,10 @@ function LeadCardSkeleton() {
 export default function LeadFinder() {
   const [query, setQuery] = useState("")
   const [leads, setLeads] = useState([])
-  const [loading, setLoading] = useState(false)
   const [scores, setScores] = useState({})
-  const [scoring, setScoring] = useState({})
+const [scoring, setScoring] = useState({})
+  const [loading, setLoading] = useState(false)
+ const [enrichedLeads, setEnrichedLeads] = useState({})
   const [generating, setGenerating] = useState({})
   const [demo, setDemo] = useState(null)
   const [demoOpen, setDemoOpen] = useState(false)
@@ -335,15 +479,27 @@ export default function LeadFinder() {
     saveRecentSearch(term)
 
     try {
-      const parsed = await api("/search/ai", {
-        method: "POST",
-        body: { query: term },
-      })
+    const parsed = parseSearch(term);
 
-      const res = await api("/leads/search", {
-        method: "POST",
-        body: parsed,
-      })
+console.log(parsed);
+
+if (!parsed.city) {
+  toast.error("Please enter a city.");
+  return;
+}
+
+if (!parsed.category) {
+  toast.error("Please enter a business category.");
+  return;
+}
+
+const res = await api("/leads/search", {
+  method: "POST",
+  body: {
+    city: parsed.city,
+    category: parsed.category,
+  },
+});
 
       setLeads(res.leads)
       toast.success(`Found ${res.count} businesses`)
@@ -353,38 +509,219 @@ export default function LeadFinder() {
       setLoading(false)
     }
   }
+async function scoreLead(lead) {
 
-  async function scoreLead(lead) {
-    setScoring(s => ({ ...s, [lead.id]: true }))
-    try {
-      const res = await api('/leads/score', { method: 'POST', body: { business: lead } })
-      setScores(sc => ({ ...sc, [lead.id]: res }))
-    } catch (e) { toast.error(e.message) } finally { setScoring(s => ({ ...s, [lead.id]: false })) }
+  setScoring(s => ({
+    ...s,
+    [lead.id]: true
+  }))
+
+  try {
+
+    let enriched =
+      enrichedLeads[lead.id]
+
+    // Only enrich if not already cached
+    if (!enriched) {
+
+     enriched = await api(
+  "/leads/enrich",
+  {
+    method: "POST",
+    body: lead,
   }
+)
+
+      setEnrichedLeads(prev => ({
+        ...prev,
+        [lead.id]: enriched,
+      }))
+
+    }
+
+    const business = {
+      ...lead,
+      ...enriched,
+    }
+
+    const score =
+      await api(
+        "/leads/score",
+        {
+          method: "POST",
+          body: {
+            business,
+          },
+        }
+      )
+
+    setScores(prev => ({
+      ...prev,
+      [lead.id]: score,
+    }))
+
+  }
+
+  catch (e) {
+
+    toast.error(e.message)
+
+  }
+
+  finally {
+
+    setScoring(s => ({
+      ...s,
+      [lead.id]: false
+    }))
+
+  }
+
+}
 
   async function scoreAll() {
     for (const l of leads) {
       if (!scores[l.id]) await scoreLead(l)
     }
+  }async function generateDemo(lead) {
+
+  setGenerating(g => ({
+    ...g,
+    [lead.id]: true
+  }))
+
+  toast.loading(
+    "Gemini is designing the demo...",
+    {
+      id: "gen",
+    }
+  )
+
+  try {
+
+    let enriched =
+      enrichedLeads[lead.id]
+
+    if (!enriched) {
+
+     enriched = await api(
+  "/leads/enrich",
+  {
+    method: "POST",
+    body: lead,
+  }
+)
+
+      setEnrichedLeads(prev => ({
+        ...prev,
+        [lead.id]: enriched,
+      }))
+
+    }
+
+    const business = {
+      ...lead,
+      ...enriched,
+    }
+
+    const res =
+      await api(
+        "/demo/generate",
+        {
+          method: "POST",
+          body: {
+            business,
+          },
+        }
+      )
+
+    setDemo(res)
+
+    setDemoOpen(true)
+
+    toast.success(
+      "Demo Ready!",
+      {
+        id: "gen",
+      }
+    )
+
   }
 
-  async function generateDemo(lead) {
-    setGenerating(g => ({ ...g, [lead.id]: true }))
-    toast.loading('Gemini is designing the demo…', { id: 'gen' })
-    try {
-      const res = await api('/demo/generate', { method: 'POST', body: { business: lead } })
-      setDemo(res)
-      setDemoOpen(true)
-      toast.success('Demo ready!', { id: 'gen' })
-    } catch (e) { toast.error(e.message, { id: 'gen' }) } finally { setGenerating(g => ({ ...g, [lead.id]: false })) }
+  catch (e) {
+
+    toast.error(
+      e.message,
+      {
+        id: "gen",
+      }
+    )
+
   }
 
-  async function saveLead(lead, score) {
-    try {
-      await api('/leads', { method: 'POST', body: { business: lead, score } })
-      toast.success('Saved to CRM')
-    } catch (e) { toast.error(e.message) }
+  finally {
+
+    setGenerating(g => ({
+      ...g,
+      [lead.id]: false
+    }))
+
   }
+
+}
+async function saveLead(lead, score) {
+
+  try {
+
+    let enriched =
+      enrichedLeads[lead.id]
+
+    if (!enriched) {
+
+      enriched = await api(
+  "/leads/enrich",
+  {
+    method: "POST",
+    body: lead,
+  }
+)
+
+      setEnrichedLeads(prev => ({
+        ...prev,
+        [lead.id]: enriched,
+      }))
+
+    }
+
+    await api(
+      "/leads",
+      {
+        method: "POST",
+        body: {
+          business: {
+            ...lead,
+            ...enriched,
+          },
+          score,
+        },
+      }
+    )
+
+    toast.success(
+      "Saved to CRM"
+    )
+
+  }
+
+  catch (e) {
+
+    toast.error(
+      e.message
+    )
+
+  }
+
+}
 
   return (
     <div className="space-y-6">
@@ -399,14 +736,30 @@ export default function LeadFinder() {
             {/* Search bar + dropdown */}
             <div className="flex-1 relative" ref={wrapperRef}>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={query}
-                placeholder="Search businesses... e.g. Restaurants near Kushinagar with no website"
-                className="pl-9 pr-20"
-                onChange={handleQueryChange}
-                onFocus={() => setShowDropdown(true)}
-                onKeyDown={handleKeyDown}
-              />
+            <Input
+  value={query}
+  placeholder="Search businesses..."
+  className="pl-10"
+  onFocus={() => setShowDropdown(true)}
+  onBlur={() =>
+    setTimeout(() => setShowDropdown(false), 200)
+  }
+  onChange={(e) => setQuery(e.target.value)}
+/>
+
+<SearchDropdown
+  query={query}
+  visible={showDropdown}
+  onSelect={(text) => {
+
+    setQuery(text);
+
+    saveHistory(text);
+
+    setShowDropdown(false);
+
+  }}
+/>
               <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
                 {query && (
                   <button

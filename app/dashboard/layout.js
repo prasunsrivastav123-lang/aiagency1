@@ -11,9 +11,12 @@ import { Badge } from '@/components/ui/badge'
 import { Menu } from "lucide-react"
 
 import {
-Sheet,
-SheetContent,
-SheetTrigger,
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet"
 
 const NAV = [
@@ -137,6 +140,21 @@ size="icon"
 side="left"
 className="w-72 p-0 bg-background border-r"
 >
+  <SheetHeader className="sr-only">
+
+  <SheetTitle>
+
+    Navigation Menu
+
+  </SheetTitle>
+
+  <SheetDescription>
+
+    Main navigation drawer for AgencyOS AI.
+
+  </SheetDescription>
+
+</SheetHeader>
 
 <div className="h-16 border-b flex items-center px-6">
 

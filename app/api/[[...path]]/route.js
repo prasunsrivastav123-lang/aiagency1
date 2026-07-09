@@ -412,14 +412,76 @@ Return ONLY strict JSON with this exact schema (no prose, no markdown):
   "pitchAngle": "<one-sentence sales angle we should lead with>"
 }`
 
-      const scored = await callGemini([{ role: 'user', content: prompt }], { jsonMode: true, temperature: 0.4 })
-      // Persist score
-      await db.collection('lead_scores').updateOne(
-        { businessId: biz.id },
-        { $set: { businessId: biz.id, business: biz, score: scored, updatedAt: new Date() } },
-        { upsert: true }
-      )
-      return ok(scored)
+    let scored;
+
+try {
+
+  scored = await callGemini(
+    [
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+    {
+      jsonMode: true,
+      temperature: 0.4,
+    }
+  );
+
+} catch (e) {
+
+  console.log("Gemini unavailable, using local score");
+
+  const localScore =
+    (!biz.website ? 40 : 0) +
+    (biz.phone ? 15 : 0) +
+    (biz.category ? 15 : 0) +
+    (biz.address ? 15 : 0) +
+    15;
+
+  scored = {
+    score: Math.min(localScore, 100),
+    verdict: "warm",
+    summary:
+      "Generated locally because Gemini is unavailable.",
+    breakdown: {
+      digitalPresence: !biz.website ? 90 : 40,
+      businessSignal: 70,
+      aiFit: 80,
+      reachability: biz.phone ? 90 : 40,
+    },
+    opportunities: [
+      "Professional Website",
+      "WhatsApp Automation",
+      "Google Business Optimization",
+    ],
+    pitchAngle:
+      "Show a modern demo website to increase conversions.",
+  };
+
+}
+
+// Save score (works for Gemini AND fallback)
+
+await db.collection("lead_scores").updateOne(
+  {
+    businessId: biz.id,
+  },
+  {
+    $set: {
+      businessId: biz.id,
+      business: biz,
+      score: scored,
+      updatedAt: new Date(),
+    },
+  },
+  {
+    upsert: true,
+  }
+);
+
+return ok(scored);
     }
 
     // GET /api/leads (saved to CRM)
@@ -509,12 +571,386 @@ Rules:
 - Use lucide-react icon names only (Utensils, Coffee, Scissors, Dumbbell, HeartPulse, Home, Car, Sparkles, Star, Users, Clock, MapPin, Award, ShieldCheck, Phone).
 - Match tone to the business category and vibe.`
 
-      const demo = await callGemini([{ role: 'user', content: prompt }], { jsonMode: true, temperature: 0.85 })
-      const id = uuidv4()
-      const doc = { id, business: biz, demo, createdAt: new Date() }
-      await db.collection('demos').insertOne(doc)
-      return ok({ id, demo, business: biz })
+     let demo;
+
+try {
+
+  demo = await callGemini(
+    [
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+    {
+      jsonMode: true,
+      temperature: 0.85,
     }
+  );
+
+} catch (e) {
+
+  console.log("Gemini unavailable, using local demo");
+
+  demo = {
+
+    brand: {
+      tagline: `Welcome to ${biz.name}`,
+      primaryColor: "#7C3AED",
+      accentColor: "#2563EB",
+      vibe: "modern",
+    },
+
+    hero: {
+      headline: `${biz.name}`,
+      subheadline:
+        "Grow your business with a modern website and AI automation.",
+      ctaPrimary: "Book Now",
+      ctaSecondary: "Call Us",
+    },
+
+    about: {
+      title: "About Us",
+      body:
+        `${biz.name} is one of the trusted businesses in ${biz.city}. We provide high-quality service with customer satisfaction as our priority.`,
+    },
+
+    services: [
+      {
+        title: "Premium Service",
+        description: "Professional service for every customer.",
+        icon: "Sparkles",
+      },
+      {
+        title: "Fast Support",
+        description: "Quick response and assistance.",
+        icon: "Phone",
+      },
+      {
+        title: "Experienced Team",
+        description: "Skilled professionals.",
+        icon: "Users",
+      },
+      {
+        title: "Affordable Pricing",
+        description: "Best value for money.",
+        icon: "Award",
+      },
+    ],
+
+    features: [
+      {
+        title: "Trusted Business",
+        description: "Reliable and highly recommended.",
+      },
+      {
+        title: "Fast Response",
+        description: "Quick customer support.",
+      },
+      {
+        title: "Quality Service",
+        description: "Professional work guaranteed.",
+      },
+      {
+        title: "Customer Satisfaction",
+        description: "Focused on great experiences.",
+      },
+    ],
+
+    testimonials: [
+      {
+        name: "Rahul",
+        role: "Customer",
+        quote: "Amazing service!",
+        rating: 5,
+      },
+      {
+        name: "Priya",
+        role: "Customer",
+        quote: "Highly recommended.",
+        rating: 5,
+      },
+      {
+        name: "Amit",
+        role: "Customer",
+        quote: "Would definitely visit again.",
+        rating: 5,
+      },
+    ],
+
+    faq: [
+      {
+        q: "Do you accept bookings?",
+        a: "Yes.",
+      },
+      {
+        q: "Where are you located?",
+        a: biz.address || "",
+      },
+      {
+        q: "Can I contact you online?",
+        a: "Yes.",
+      },
+      {
+        q: "Do you provide support?",
+        a: "Absolutely.",
+      },
+      {
+        q: "How do I get started?",
+        a: "Call or visit us.",
+      },
+    ],
+
+    cta: {
+      headline: "Ready to Get Started?",
+      button: "Contact Now",
+    },
+
+    contact: {
+      phone: biz.phone || "",
+      email: biz.email || "",
+      address: biz.address || "",
+    },
+
+  };
+
+}
+
+const id = uuidv4();
+
+await db.collection("demos").insertOne({
+  id,
+  business: biz,
+  demo,
+  createdAt: new Date(),
+});
+
+return ok({
+  id,
+  demo,
+  business: biz,
+});
+    }
+
+// =====================================================
+// OUTREACH GENERATOR
+// POST /api/outreach/generate
+// =====================================================
+
+if (route === "/outreach/generate" && method === "POST") {
+
+  const t = verifyToken(request)
+
+  if (!t)
+    return err("Unauthorized",401)
+
+  const body = await request.json()
+
+  const business = body.business
+
+  if (!business?.id)
+    return err("Business ID required")
+
+  const cached =
+    await db.collection("outreachs")
+    .findOne({
+      leadId:business.id
+    })
+
+  if (cached && !body.force) {
+
+    return ok({
+      ...cached,
+      cached:true
+    })
+
+  }
+
+  const prompt = `
+
+You are a professional sales copywriter.
+
+Generate:
+
+Email
+
+WhatsApp
+
+Call Script
+
+Proposal
+
+Follow Up
+
+Business:
+
+${JSON.stringify(business,null,2)}
+
+Return STRICT JSON.
+
+`
+
+ let result;
+
+try {
+
+  result = await callGemini(
+    [
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+    {
+      jsonMode: true,
+    }
+  );
+
+} catch (e) {
+
+  console.log("Gemini unavailable, using local outreach");
+
+  result = {
+
+    emailSubject:
+      `Grow ${business.name} with a modern website`,
+
+    emailBody:
+`Hi ${business.name},
+
+I noticed your business and thought you could benefit from a modern website along with AI-powered customer support.
+
+I'd love to show you a free demo built specifically for your business.
+
+Would you be available for a quick 10-minute call this week?
+
+Regards,
+AgencyOS AI`,
+
+    whatsapp:
+`Hi! I created a free website demo for ${business.name}. It could help attract more customers and automate enquiries. Would you like to see it?`,
+
+    callScript: {
+
+      opening:
+        "Hi, am I speaking with the owner?",
+
+      painPoints: [
+        "Limited online presence",
+        "Missed online customers",
+        "No automated enquiry system",
+      ],
+
+      pitch:
+        "We build modern websites with AI automation to increase bookings.",
+
+      questions: [
+        "Do customers usually call or visit directly?",
+        "Do you currently have a website?",
+      ],
+
+      objectionHandling: [
+        {
+          objection: "Too expensive",
+          response: "We have affordable plans for local businesses.",
+        },
+      ],
+
+      closing:
+        "Can I show you a free demo this week?",
+
+    },
+
+    followUp: {
+
+      day2:
+        "Just checking if you saw my previous message.",
+
+      day5:
+        "We recently built another demo for a similar business.",
+
+      day10:
+        "Would love to know your thoughts.",
+
+      final:
+        "I'll close this conversation for now. Feel free to reach out anytime.",
+
+    },
+
+    proposalIntro: {
+
+      intro:
+        "Digital Growth Proposal",
+
+      problem:
+        "Limited digital presence.",
+
+      solution:
+        "Professional website with AI chatbot and WhatsApp integration.",
+
+      benefits: [
+        "More customers",
+        "24/7 AI replies",
+        "Better Google visibility",
+      ],
+
+      services: [
+        "Website",
+        "AI Chatbot",
+        "WhatsApp Automation",
+      ],
+
+      timeline:
+        "5 Days",
+
+      price:
+        "₹19,999",
+
+      estimatedROI:
+        "350%",
+
+    },
+
+  };
+
+}
+
+  await db.collection("outreachs")
+  .updateOne(
+
+    {
+      leadId:business.id
+    },
+
+    {
+      $set:{
+        leadId:business.id,
+        ...result,
+        updatedAt:new Date()
+      },
+
+      $setOnInsert:{
+        createdAt:new Date()
+      }
+
+    },
+
+    {
+      upsert:true
+    }
+
+  )
+
+  return ok({
+
+    ...result,
+
+    cached:false
+
+  })
+
+}
+
 
     // GET /api/demo/:id
     if (route.startsWith('/demo/') && method === 'GET' && path[0] === 'demo' && path[1]) {
@@ -560,6 +996,27 @@ Rules:
       const rows = await db.collection('deployments').find({ userId: t.id }).sort({ createdAt: -1 }).limit(100).toArray()
       return ok({ deployments: rows.map(strip) })
     }
+
+    // =====================================================
+// SEND EMAIL
+// =====================================================
+
+if(route==="/outreach/send-email" && method==="POST"){
+
+    const t=verifyToken(request)
+
+    if(!t)
+      return err("Unauthorized",401)
+
+    return ok({
+
+      success:true,
+
+      message:"Email sending coming next."
+
+    })
+
+}
 
     // ====== WHATSAPP OUTREACH (MOCK) ======
     // TODO: Real WhatsApp Business API.
