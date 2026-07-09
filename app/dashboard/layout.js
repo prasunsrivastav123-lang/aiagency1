@@ -8,6 +8,13 @@ import { getUser, getToken, clearAuth } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Menu } from "lucide-react"
+
+import {
+Sheet,
+SheetContent,
+SheetTrigger,
+} from "@/components/ui/sheet"
 
 const NAV = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -22,6 +29,7 @@ export default function DashboardLayout({ children }) {
   const pathname = usePathname()
   const router = useRouter()
   const [user, setUser] = useState(null)
+const [mobileOpen, setMobileOpen] = useState(false)
 useEffect(() => {
   const token = getToken();
   const u = getUser();
@@ -35,10 +43,14 @@ useEffect(() => {
   setUser(u);
 }, [router]);
 
-  function logout() {
+ function logout() {
+  setMobileOpen(false);
   clearAuth();
   router.replace("/login");
-} 
+}
+useEffect(() => {
+  setMobileOpen(false);
+}, [pathname]);
 
   if (!user) {
   return (
@@ -51,7 +63,7 @@ useEffect(() => {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Sidebar */}
-      <aside className="w-64 border-r bg-sidebar shrink-0 hidden md:flex md:flex-col">
+      <aside className="hidden md:flex w-64 border-r bg-sidebar shrink-0 flex-col">
         <div className="h-16 flex items-center gap-2 px-5 border-b">
           <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-violet-500 to-blue-500 grid place-items-center">
             <Bot className="h-4 w-4 text-white" />
@@ -63,7 +75,16 @@ useEffect(() => {
             const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
             const Icon = item.icon
             return (
-              <Link key={item.href} href={item.href} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all ${active ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'}`}>
+             <Link
+  key={item.href}
+  href={item.href}
+  onClick={() => setMobileOpen(false)}
+  className={`flex items-center gap-3 rounded-xl px-4 py-3 transition ${
+    active
+      ? "bg-violet-500/10 text-violet-400"
+      : "hover:bg-muted"
+  }`}
+>
                 <Icon className="h-4 w-4" />
                 <span>{item.label}</span>
                 {item.hot && <Badge className="ml-auto text-[10px] px-1.5 py-0 h-4 bg-gradient-to-r from-violet-500 to-blue-500 border-0">AI</Badge>}
@@ -86,12 +107,166 @@ useEffect(() => {
       </aside>
 
       {/* Main */}
-      <div className="flex-1 min-w-0 flex flex-col">
+      {/* Main */}
+<div className="flex-1 min-w-0 flex flex-col pb-20 md:pb-0">
         <header className="h-16 border-b bg-background/60 backdrop-blur sticky top-0 z-40 flex items-center justify-between px-6">
           <div className="flex items-center gap-3">
-            <div className="text-sm text-muted-foreground">Welcome back,</div>
-            <div className="font-medium">{user.name.split(' ')[0]} 👋</div>
-          </div>
+
+{/* Mobile menu */}
+<div className="md:hidden">
+
+<Sheet
+  open={mobileOpen}
+  onOpenChange={setMobileOpen}
+>
+
+<SheetTrigger asChild>
+
+<Button
+variant="ghost"
+size="icon"
+>
+
+<Menu className="h-5 w-5"/>
+
+</Button>
+
+</SheetTrigger>
+
+<SheetContent
+side="left"
+className="w-72 p-0 bg-background border-r"
+>
+
+<div className="h-16 border-b flex items-center px-6">
+
+<div className="h-9 w-9 rounded-xl bg-gradient-to-r from-violet-500 to-blue-500 flex items-center justify-center">
+
+<Bot className="h-5 w-5 text-white"/>
+
+</div>
+
+<span className="ml-3 font-bold text-lg">
+
+AgencyOS AI
+
+</span>
+
+</div>
+
+<nav className="p-4 space-y-2">
+
+{NAV.map(item=>{
+
+const Icon=item.icon
+
+const active=
+
+pathname===item.href ||
+
+pathname.startsWith(item.href)
+
+return(
+
+<Link
+
+key={item.href}
+
+href={item.href}
+
+className={`flex items-center gap-3 rounded-xl px-4 py-3 transition
+
+${active
+
+?"bg-violet-500/10 text-violet-400"
+
+:"hover:bg-muted"
+
+}`}
+
+>
+
+<Icon className="h-5 w-5"/>
+
+<span>{item.label}</span>
+
+</Link>
+
+)
+
+})}
+
+</nav>
+
+<div className="absolute bottom-0 left-0 right-0 border-t p-4">
+
+<div className="flex items-center gap-3">
+
+<Avatar>
+
+<AvatarFallback>
+
+{user.name[0]}
+
+</AvatarFallback>
+
+</Avatar>
+
+<div>
+
+<p className="font-medium">
+
+{user.name}
+
+</p>
+
+<p className="text-xs text-muted-foreground">
+
+{user.email}
+
+</p>
+
+</div>
+
+<Button
+
+variant="ghost"
+
+size="icon"
+
+onClick={logout}
+
+className="ml-auto"
+
+>
+
+<LogOut className="h-5 w-5"/>
+
+</Button>
+
+</div>
+
+</div>
+
+</SheetContent>
+
+</Sheet>
+
+</div>
+
+<div className="text-sm text-muted-foreground">
+
+Welcome back,
+
+</div>
+
+<div className="font-medium">
+
+{user.name.split(" ")[0]} 👋
+
+</div>
+
+</div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="gap-2">
               <Sparkles className="h-3.5 w-3.5 text-violet-500" />
@@ -102,6 +277,8 @@ useEffect(() => {
         </header>
         <main className="flex-1 p-6 md:p-8 overflow-auto">{children}</main>
       </div>
+      {/* Mobile Bottom Navigation */}
+
     </div>
   )
 

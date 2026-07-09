@@ -14,6 +14,11 @@ import { api, setAuth,getToken } from '@/lib/api'
 
 export default function RegisterPage() {
   const router = useRouter()
+  useEffect(() => {
+  if (getToken()) {
+    router.replace("/dashboard");
+  }
+}, [router]);
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
