@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect,useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { api, setAuth } from '@/lib/api'
+import { api, setAuth,getToken } from '@/lib/api'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -19,6 +19,11 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
 
+  useEffect(() => {
+  if (getToken()) {
+    router.replace("/dashboard");
+  }
+}, [router]);
   async function submit(e) {
     e.preventDefault()
     setLoading(true)
@@ -26,7 +31,7 @@ export default function RegisterPage() {
       const res = await api('/auth/register', { method: 'POST', body: { name, email, password } })
       setAuth(res.token, res.user)
       toast.success('Account created!')
-      window.location.href = '/dashboard'
+    router.replace("/dashboard");
     } catch (e) { toast.error(e.message); setLoading(false) }
   }
 
@@ -38,7 +43,7 @@ export default function RegisterPage() {
       const res = await api('/auth/google', { method: 'POST', body: {} })
       setAuth(res.token, res.user)
       toast.success('Signed up with Google (mock)')
-      router.push('/dashboard')
+      router.replace("/dashboard")
     } catch (e) { toast.error(e.message) } finally { setLoading(false) }
   }
 

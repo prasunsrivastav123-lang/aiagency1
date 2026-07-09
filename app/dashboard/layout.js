@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Bot, LayoutDashboard, Search, Kanban, Rocket, Settings, LogOut, Sparkles, Bell, MessageSquare } from 'lucide-react'
-import { getUser, clearAuth } from '@/lib/api'
+import { getUser, getToken, clearAuth } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -22,16 +22,31 @@ export default function DashboardLayout({ children }) {
   const pathname = usePathname()
   const router = useRouter()
   const [user, setUser] = useState(null)
+useEffect(() => {
+  const token = getToken();
+  const u = getUser();
 
-  useEffect(() => {
-    const u = getUser()
-    if (!u) { router.push('/login'); return }
-    setUser(u)
-  }, [router])
+  if (!token || !u) {
+    clearAuth();
+    router.replace("/login");
+    return;
+  }
 
-  function logout() { clearAuth(); router.push('/') }
+  setUser(u);
+}, [router]);
 
-  if (!user) return null
+  function logout() {
+  clearAuth();
+  router.replace("/login");
+} 
+
+  if (!user) {
+  return (
+    <div className="flex h-screen items-center justify-center">
+      Loading...
+    </div>
+  );
+}
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -89,4 +104,5 @@ export default function DashboardLayout({ children }) {
       </div>
     </div>
   )
+
 }
