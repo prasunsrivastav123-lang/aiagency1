@@ -15,11 +15,7 @@ import { GoogleLogin } from "@react-oauth/google";
 
 export default function LoginPage() {
   const router = useRouter()
-  useEffect(() => {
-  if (getToken()) {
-    router.replace("/dashboard");
-  }
-}, [router]);
+  
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)

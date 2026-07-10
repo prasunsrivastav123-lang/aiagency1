@@ -427,6 +427,7 @@ try {
     {
       jsonMode: true,
       temperature: 0.4,
+        maxOutputTokens:300
     }
   );
 
@@ -816,6 +817,47 @@ if (route === "/demo/save-local" && method === "POST") {
       if (!row) return err('Demo not found', 404)
       return ok(strip(row))
     }
+
+    // =====================================================
+// CONTACT FORM
+// POST /api/contact
+// =====================================================
+
+if (route === "/contact" && method === "POST") {
+
+    const body = await request.json();
+
+    if (!body.businessId)
+        return err("Business ID required");
+
+    if (!body.name)
+        return err("Name required");
+
+    await db.collection("contactLeads").insertOne({
+
+        businessId: body.businessId,
+
+        name: body.name,
+
+        phone: body.phone || "",
+
+        email: body.email || "",
+
+        message: body.message || "",
+
+        createdAt: new Date(),
+
+    });
+
+    return ok({
+
+        success: true,
+
+        message: "Contact request saved."
+
+    });
+
+}
 
     // ====== DEPLOYMENTS (MOCK) ======
     // TODO: Real deployment flow.
