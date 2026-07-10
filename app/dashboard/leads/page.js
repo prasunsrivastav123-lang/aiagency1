@@ -135,7 +135,20 @@ function ScoreRing({ score }) {
     </div>
   )
 }
-function LeadCard({ lead, onScore, onGenerateDemo, onSave, score, scoring, generating }) {
+function LeadCard({
+  lead,
+  enriched,
+  onScore,
+  onGenerateDemo,
+  onSave,
+  score,
+  scoring,
+  generating,
+}) {
+  const info = {
+  ...lead,
+  ...(enriched || {}),
+};
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} layout>
 <Card className="border border-border/60 rounded-2xl hover:border-violet-500/40 hover:shadow-xl hover:shadow-violet-500/10 transition-all duration-300">
@@ -172,17 +185,28 @@ function LeadCard({ lead, onScore, onGenerateDemo, onSave, score, scoring, gener
 
       </div>
 
-      {lead.phone && (
+ <div className="mt-4 space-y-2">
 
-        <div className="flex items-center gap-1">
+  {info.phone && (
+    <div className="flex items-center gap-2 text-sm">
+      <Phone className="h-4 w-4" />
+      <span>{info.phone}</span>
+    </div>
+  )}
 
-          <Phone className="h-4 w-4"/>
+  {info.email && (
+    <div className="text-sm">
+      📧 {info.email}
+    </div>
+  )}
 
-          {lead.phone}
+  {info.whatsapp && (
+    <div className="text-sm text-green-500">
+      💬 WhatsApp Available
+    </div>
+  )}
 
-        </div>
-
-      )}
+</div>
 
     </div>
 
@@ -286,6 +310,45 @@ function LeadCard({ lead, onScore, onGenerateDemo, onSave, score, scoring, gener
     </Button>
 
   )}
+  {info.services?.length > 0 && (
+
+<div className="mt-4">
+
+<h3 className="font-semibold">
+
+Services
+
+</h3>
+
+<div className="flex flex-wrap gap-2 mt-2">
+
+{info.services.map(service=>(
+
+<Badge key={service}>
+
+{service}
+
+</Badge>
+
+))}
+
+</div>
+
+</div>
+
+)}
+{info.socials?.instagram && (
+
+<a
+href={info.socials.instagram}
+target="_blank"
+>
+
+Instagram
+
+</a>
+
+)}
 
   <Button
     variant="outline"
@@ -324,7 +387,7 @@ function LeadCard({ lead, onScore, onGenerateDemo, onSave, score, scoring, gener
     onClick={() => {
 
       navigator.clipboard.writeText(
-        lead.phone || ""
+        info.phone || ""
       )
 
       toast.success("Phone copied!")
@@ -922,9 +985,19 @@ runSearch(text)
       <AnimatePresence>
         {leads.length > 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
-            {leads.map(l => (
-              <LeadCard key={l.id} lead={l} score={scores[l.id]} scoring={scoring[l.id]} generating={generating[l.id]} onScore={scoreLead} onGenerateDemo={generateDemo} onSave={saveLead} />
-            ))}
+           {leads.map((l) => (
+  <LeadCard
+    key={l.id}
+    lead={l}
+    enriched={enrichedLeads[l.id]}
+    score={scores[l.id]}
+    scoring={scoring[l.id]}
+    generating={generating[l.id]}
+    onScore={scoreLead}
+    onGenerateDemo={generateDemo}
+    onSave={saveLead}
+  />
+))}
           </motion.div>
         )}
       </AnimatePresence>

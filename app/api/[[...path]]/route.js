@@ -6,7 +6,7 @@ import { callGemini } from '@/lib/gemini'
 import bcrypt from 'bcryptjs'
 import { parseSearch } from "@/lib/search-parser";
 import { OAuth2Client } from 'google-auth-library'
-
+import { enrichWebsite } from "@/lib/enrichment";
 const googleClient = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID
 )
@@ -377,6 +377,125 @@ console.log("Mapped:", selected);
     source: "geoapify"
 
   })
+}
+// ======================================
+// SAVE LEAD
+// POST /api/leads
+// ======================================
+
+if (route === "/leads" && method === "POST") {
+
+    const t = verifyToken(request);
+
+    if (!t)
+        return err("Unauthorized",401);
+
+    const body = await request.json();
+
+    await db.collection("saved_leads").insertOne({
+
+        id: uuidv4(),
+
+        userId: t.id,
+
+        business: body.business,
+
+        score: body.score,
+
+        createdAt: new Date(),
+
+    });
+
+    return ok({
+
+        success:true
+
+    });
+
+}
+
+// =====================================================
+// LEAD ENRICHMENT
+// POST /api/leads/enrich
+// =====================================================
+
+if (route === "/leads/enrich" && method === "POST") {
+
+  const business = await request.json();
+
+  let websiteData = null;
+
+  if (business.website) {
+    try {
+      websiteData = await enrichWebsite(business.website);
+    } catch (e) {
+      console.log("Website enrichment failed:", e.message);
+    }
+  }
+
+ const enriched = {
+
+  ...business,
+
+  // Primary contact
+  phone: websiteData?.phones?.[0] || business.phone || "",
+  email: websiteData?.emails?.[0] || business.email || "",
+
+  // Complete contact info
+  phones: websiteData?.phones || [],
+  emails: websiteData?.emails || [],
+  whatsapp: websiteData?.whatsapp || "",
+
+  // Socials
+  socials: websiteData?.socials || {},
+
+  // Business
+  businessName: websiteData?.businessName || business.name || "",
+  description: websiteData?.description || "",
+  tagline: websiteData?.tagline || "",
+
+  // Branding
+  logo: websiteData?.logo || "",
+  heroImage: websiteData?.heroImage || "",
+  colors: websiteData?.colors || [],
+  primaryColor: websiteData?.primaryColor || "",
+
+  // Content
+  services: websiteData?.services || [],
+  faq: websiteData?.faq || [],
+  testimonials: websiteData?.testimonials || [],
+  pricing: websiteData?.pricing || [],
+
+  // Business details
+  hours: websiteData?.hours || {},
+  address: websiteData?.address || business.address || "",
+  geo: websiteData?.geo || {},
+
+  // Links
+  bookingUrl: websiteData?.bookingUrl || "",
+  maps: websiteData?.maps || business.maps || "",
+  contactFormEndpoint: websiteData?.contactFormEndpoint || "",
+
+  // Schema
+  schema: websiteData?.schema || {},
+
+  // AI scores
+  confidence: websiteData?.confidence || {
+    phone: 0,
+    email: 0,
+    website: 0,
+  },
+
+  completeness: websiteData?.completeness || 0,
+
+  missingFields: websiteData?.missingFields || [],
+
+  pagesCrawled: websiteData?.pagesCrawled || 0,
+
+};
+
+  return ok(enriched);
+
 }
     // POST /api/leads/score { business }
     if (route === '/leads/score' && method === 'POST') {
