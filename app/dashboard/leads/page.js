@@ -59,10 +59,10 @@ const QUICK_SUGGESTIONS = [
 
 const TRENDING_SEARCHES = [
   'Restaurants with no website',
-  'Gyms with low ratings',
-  'Dentists near me',
-  'Salons with under 4★ rating',
-  'Cafes with no Instagram',
+ "Hotels in Delhi",
+  "Cafes in Mumbai",
+  "Hospitals in Lucknow",
+  "Gyms in Bangalore", 
 ]
 
 function normalizeCategories(raw) {
