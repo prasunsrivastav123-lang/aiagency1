@@ -3,12 +3,27 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Bot, LayoutDashboard, Search, Kanban, Rocket, Settings, LogOut, Sparkles, Bell, MessageSquare } from 'lucide-react'
+import {
+  Bot,
+  LayoutDashboard,
+  Search,
+  Kanban,
+  Rocket,
+  Settings,
+  LogOut,
+  Sparkles,
+  Bell,
+  MessageSquare,
+  MessageCircle,
+  Phone,
+  BarChart3
+} from 'lucide-react'
 import { getUser, getToken, clearAuth } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Menu } from "lucide-react"
+
 
 import {
   Sheet,
@@ -20,13 +35,61 @@ import {
 } from "@/components/ui/sheet"
 
 const NAV = [
-  { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-  { href: '/dashboard/leads', label: 'Lead Finder', icon: Search, hot: true },
-  { href: '/dashboard/crm', label: 'CRM Pipeline', icon: Kanban },
-  { href: '/dashboard/deployments', label: 'Deployments', icon: Rocket },
-  { href: '/dashboard/outreach', label: 'AI Outreach', icon: MessageSquare },
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
-]
+  {
+    href: "/dashboard",
+    label: "Overview",
+    icon: LayoutDashboard,
+  },
+
+  {
+    href: "/dashboard/leads",
+    label: "Lead Finder",
+    icon: Search,
+    hot: true,
+  },
+
+  {
+    href: "/dashboard/crm",
+    label: "CRM Pipeline",
+    icon: Kanban,
+  },
+
+  {
+    href: "/dashboard/outreach",
+    label: "AI Outreach",
+    icon: MessageSquare,
+  },
+
+  {
+    href: "/dashboard/whatsapp",
+    label: "WhatsApp",
+    icon: MessageCircle,
+  },
+
+  {
+    href: "/dashboard/campaigns",
+    label: "Campaigns",
+    icon: BarChart3,
+  },
+
+  {
+    href: "/dashboard/calling",
+    label: "Calling",
+    icon: Phone,
+  },
+
+  {
+    href: "/dashboard/deployments",
+    label: "Deployments",
+    icon: Rocket,
+  },
+
+  {
+    href: "/dashboard/settings",
+    label: "Settings",
+    icon: Settings,
+  },
+];
 
 export default function DashboardLayout({ children }) {
   const pathname = usePathname()

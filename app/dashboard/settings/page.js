@@ -1,13 +1,14 @@
 'use client'
-
-import { getUser } from '@/lib/api'
-import { useEffect, useState } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from "@/components/ui/button";
+import { getUser } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function Settings() {
   const [user, setUser] = useState(null)
+  
   useEffect(() => setUser(getUser()), [])
   if (!user) return null
   return (
@@ -45,6 +46,30 @@ export default function Settings() {
           </div>
         </CardContent>
       </Card>
+      <Card>
+  <CardContent className="pt-6">
+    <div className="flex items-center justify-between">
+      <div>
+        <h3 className="font-semibold">
+          Gmail Integration
+        </h3>
+
+        <p className="text-sm text-muted-foreground">
+          Connect your Gmail account to send outreach emails directly from AgencyOS AI.
+        </p>
+      </div>
+
+      <Button
+  onClick={() => {
+    window.location.href = "/api/google/connect";
+  }}
+  className="bg-gradient-to-r from-red-500 to-orange-500"
+>
+  Connect Gmail
+</Button>
+    </div>
+  </CardContent>
+</Card>
 
       <Card>
         <CardContent className="pt-6">

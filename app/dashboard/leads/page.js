@@ -65,6 +65,8 @@ const TRENDING_SEARCHES = [
   "Gyms in Bangalore", 
 ]
 
+
+
 function normalizeCategories(raw) {
   if (!Array.isArray(raw)) return []
   return raw

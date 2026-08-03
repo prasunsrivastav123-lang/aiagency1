@@ -13,8 +13,8 @@ const googleClient = new OAuth2Client(
 const oAuth2Client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
-  process.env.NEXT_PUBLIC_BASE_URL + '/api/auth/callback/google'
-)
+  process.env.NEXT_PUBLIC_BASE_URL + "/api/google/callback"
+);
 
 // ---------- MongoDB ----------
 let client, db
@@ -181,6 +181,97 @@ if (route === '/auth/google' && method === 'POST') {
       const t = verifyToken(request); if (!t) return err('Unauthorized', 401)
       return ok({ user: t })
     }
+    // =====================================================
+// GOOGLE CONNECT
+// POST /api/google/connect
+// =====================================================
+if (route === "/google/connect" && method === "GET") {
+
+  const url = oAuth2Client.generateAuthUrl({
+    access_type: "offline",
+    prompt: "consent",
+    scope: [
+      "openid",
+      "email",
+      "profile",
+      "https://www.googleapis.com/auth/gmail.send"
+    ]
+  });
+
+  return NextResponse.redirect(url);
+
+}
+if (route === "/google/callback" && method === "GET") {
+
+  const { searchParams } =
+    new URL(request.url);
+
+  const code =
+    searchParams.get("code");
+
+  console.log("CODE:", code);
+
+  const { tokens } =
+    await oAuth2Client.getToken(code);
+
+  console.log(tokens);
+
+  return NextResponse.redirect(
+    process.env.NEXT_PUBLIC_BASE_URL +
+    "/dashboard/settings"
+  );
+
+}
+if (route === "/google/connect" && method === "POST") {
+
+  const t = verifyToken(request);
+
+  if (!t)
+    return err("Unauthorized", 401);
+
+  const body = await request.json();
+
+  try {
+
+    const { tokens } = await oAuth2Client.getToken(body.code);
+
+    console.log("TOKENS:", tokens);
+
+    const result = await db.collection("users").updateOne(
+      { id: t.id },
+      {
+        $set: {
+          gmailConnected: true,
+          gmailRefreshToken: tokens.refresh_token,
+          gmailAccessToken: tokens.access_token,
+          gmailScope: tokens.scope,
+          gmailTokenExpiry: tokens.expiry_date,
+          gmailConnectedAt: new Date()
+        }
+      }
+    );
+
+    console.log("UPDATE RESULT:", result);
+
+    return ok({
+      success: true,
+      message: "Gmail connected successfully."
+    });
+
+  } catch (e) {
+
+    console.error(
+      "GOOGLE ERROR:",
+      e.response?.data || e.message
+    );
+
+    return err(
+      e.response?.data?.error || e.message,
+      500
+    );
+
+  }
+}
 
     // ====== LEADS ======
     // POST /api/leads/search { city, category, filters }
@@ -1020,21 +1111,69 @@ if (route === "/contact" && method === "POST") {
 // SEND EMAIL
 // =====================================================
 
-if(route==="/outreach/send-email" && method==="POST"){
+if (route === "/outreach/send-email" && method === "POST") {
+ const t = verifyToken(request);
 
-    const t=verifyToken(request)
+if(!t)
+    return err("Unauthorized",401);
 
-    if(!t)
-      return err("Unauthorized",401)
+const body = await request.json();
 
-    return ok({
+const user =
+await db.collection("users")
+.findOne({
+    id:t.id
+});
 
-      success:true,
+if(!user?.gmailRefreshToken)
+    return err("Connect Gmail first.");
 
-      message:"Email sending coming next."
+const { sendEmail } =
+await import("@/lib/email");
 
-    })
+const result =
+await sendEmail({
 
+    refreshToken:
+    user.gmailRefreshToken,
+
+    to:body.to,
+
+    subject:body.subject,
+
+    html:body.html,
+
+    text:body.text
+
+});
+
+await db.collection("emails").insertOne({
+
+    id:uuidv4(),
+
+    userId:t.id,
+
+    provider:"gmail",
+
+    to:body.to,
+
+    subject:body.subject,
+
+    status:"sent",
+
+    gmailId:result.id,
+
+    createdAt:new Date()
+
+});
+
+return ok({
+
+    success:true,
+
+    result
+
+});
 }
 
     // ====== WHATSAPP OUTREACH (MOCK) ======
