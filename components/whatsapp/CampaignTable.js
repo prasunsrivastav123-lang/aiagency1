@@ -31,7 +31,8 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { motion } from "framer-motion"
 import { Users, Clock, BarChart3 } from "lucide-react"
-import { statusStyles } from "@/lib/whatsapp"
+import { statusStyles } from "@/lib/whatsapp/index";
+console.log("statusStyles:", statusStyles);
 import CampaignCard from "./CampaignCard"
 
 function conversion(campaign) {

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import {
   Search, MapPin, Phone, Globe, Instagram, Facebook, Star, Sparkles, Loader2,
-  Rocket, Save, Zap, TrendingUp, Mic, Navigation, X, Clock, Flame,
+  Rocket, Save, Zap, TrendingUp, Mic, Navigation, X, Clock, Flame, MessageCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,6 +26,9 @@ import GeminiFallbackModal from "@/components/GeminiFallbackModal";
 import DemoPreview from '@/components/demo-preview'
 import SearchDropdown from "@/components/search/SearchDropdown";
 import { saveHistory } from "@/lib/search/history";
+import { useRouter } from "next/navigation";
+import { setSelectedLead } from "@/lib/whatsapp/selectedLead";
+
 // ---------------------------------------------------------------------------
 // Static config — all local, no network calls
 // ---------------------------------------------------------------------------
@@ -151,6 +154,7 @@ function LeadCard({
   ...lead,
   ...(enriched || {}),
 };
+  const router = useRouter();
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} layout>
 <Card className="border border-border/60 rounded-2xl hover:border-violet-500/40 hover:shadow-xl hover:shadow-violet-500/10 transition-all duration-300">
@@ -267,140 +271,112 @@ function LeadCard({
             )}
           </AnimatePresence>
 
-         <div className="grid grid-cols-2 gap-3 mt-6">
+  {/* Services */}
+{info.services?.length > 0 && (
+  <div className="mt-4">
+    <h3 className="font-semibold text-sm mb-2">
+      Services
+    </h3>
+
+    <div className="flex flex-wrap gap-2">
+      {info.services.map((service) => (
+        <Badge key={service} variant="secondary">
+          {service}
+        </Badge>
+      ))}
+    </div>
+  </div>
+)}
+
+{/* Socials */}
+{info.socials?.instagram && (
+  <div className="mt-3">
+    <a
+      href={info.socials.instagram}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-pink-500 hover:underline text-sm"
+    >
+      📸 Instagram
+    </a>
+  </div>
+)}
+
+{/* Buttons */}
+<div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
 
   {!score ? (
-
     <Button
       onClick={() => onScore(lead)}
       disabled={scoring}
+      className="col-span-2 lg:col-span-1"
     >
-
       {scoring ? (
-
-        <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
-
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       ) : (
-
-        <Sparkles className="mr-2 h-4 w-4"/>
-
+        <Sparkles className="mr-2 h-4 w-4" />
       )}
-
       Score AI
-
     </Button>
-
   ) : (
-
     <Button
       onClick={() => onGenerateDemo(lead)}
       disabled={generating}
+      className="col-span-2 lg:col-span-1"
     >
-
       {generating ? (
-
-        <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
-
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       ) : (
-
-        <Rocket className="mr-2 h-4 w-4"/>
-
+        <Rocket className="mr-2 h-4 w-4" />
       )}
-
       Generate Demo
-
     </Button>
-
   )}
-  {info.services?.length > 0 && (
-
-<div className="mt-4">
-
-<h3 className="font-semibold">
-
-Services
-
-</h3>
-
-<div className="flex flex-wrap gap-2 mt-2">
-
-{info.services.map(service=>(
-
-<Badge key={service}>
-
-{service}
-
-</Badge>
-
-))}
-
-</div>
-
-</div>
-
-)}
-{info.socials?.instagram && (
-
-<a
-href={info.socials.instagram}
-target="_blank"
->
-
-Instagram
-
-</a>
-
-)}
 
   <Button
     variant="outline"
     onClick={() => onSave(lead, score)}
   >
-
-    <Heart className="mr-2 h-4 w-4"/>
-
+    <Heart className="mr-2 h-4 w-4" />
     Save CRM
+  </Button>
 
+  <Button
+    onClick={() => {
+      setSelectedLead(info);
+      router.push("/dashboard/whatsapp");
+    }}
+    className="bg-gradient-to-r from-green-500 to-emerald-500 text-white"
+  >
+    <MessageCircle className="mr-2 h-4 w-4" />
+    WhatsApp
   </Button>
 
   <Button
     variant="outline"
     onClick={() => {
-
       const url =
         lead.mapsUrl ||
         `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          lead.name + " " + lead.address
-        )}`
+          `${lead.name} ${lead.address}`
+        )}`;
 
-      window.open(url,"_blank")
-
+      window.open(url, "_blank");
     }}
   >
-
-    <Map className="mr-2 h-4 w-4"/>
-
-    Open Maps
-
+    <Map className="mr-2 h-4 w-4" />
+    Maps
   </Button>
 
   <Button
     variant="outline"
     onClick={() => {
-
-      navigator.clipboard.writeText(
-        info.phone || ""
-      )
-
-      toast.success("Phone copied!")
-
+      navigator.clipboard.writeText(info.phone || "");
+      toast.success("Phone copied!");
     }}
   >
-
-    <Copy className="mr-2 h-4 w-4"/>
-
+    <Copy className="mr-2 h-4 w-4" />
     Copy Phone
-
   </Button>
 
 </div>

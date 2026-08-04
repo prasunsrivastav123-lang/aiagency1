@@ -13,7 +13,7 @@ import { motion } from "framer-motion"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Users, Send, Reply, Clock } from "lucide-react"
-import { statusStyles } from "@/lib/whatsapp"
+import { statusStyles } from "@/lib/whatsapp/index";
 
 function conversion(campaign) {
   if (!campaign.sent) return 0
