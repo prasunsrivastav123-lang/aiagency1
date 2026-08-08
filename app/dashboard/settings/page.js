@@ -34,17 +34,7 @@ export default function Settings() {
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h3 className="font-semibold">Integration Guide (PDF)</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Every mock in the codebase and exactly what to change to make it real.</p>
-            </div>
-            <a href="/downloads/AgencyOS-AI-Integration-Guide.pdf" download>
-              <button className="px-4 py-2 rounded-lg bg-gradient-to-r from-violet-500 to-blue-500 text-white text-sm font-medium">Download PDF</button>
-            </a>
-          </div>
-        </CardContent>
+        
       </Card>
       <Card>
   <CardContent className="pt-6">
@@ -71,33 +61,7 @@ export default function Settings() {
   </CardContent>
 </Card>
 
-      <Card>
-        <CardContent className="pt-6">
-          <h3 className="font-semibold mb-3">Integrations (fill in yourself later)</h3>
-          <div className="space-y-3 text-sm">
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div><div className="font-medium">Google Places API</div><div className="text-xs text-muted-foreground">console.cloud.google.com/apis/credentials</div></div>
-              <code className="text-xs bg-muted px-2 py-1 rounded">GOOGLE_PLACES_API_KEY</code>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div><div className="font-medium">GitHub PAT</div><div className="text-xs text-muted-foreground">github.com/settings/tokens?type=beta</div></div>
-              <code className="text-xs bg-muted px-2 py-1 rounded">GITHUB_TOKEN</code>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div><div className="font-medium">Vercel Token</div><div className="text-xs text-muted-foreground">vercel.com/account/tokens</div></div>
-              <code className="text-xs bg-muted px-2 py-1 rounded">VERCEL_TOKEN</code>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div><div className="font-medium">Google OAuth</div><div className="text-xs text-muted-foreground">console.cloud.google.com/apis/credentials</div></div>
-              <code className="text-xs bg-muted px-2 py-1 rounded">GOOGLE_CLIENT_ID</code>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg border">
-              <div><div className="font-medium">WhatsApp Business API</div><div className="text-xs text-muted-foreground">developers.facebook.com/apps</div></div>
-              <code className="text-xs bg-muted px-2 py-1 rounded">WHATSAPP_TOKEN</code>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+  
     </div>
   )
 }
