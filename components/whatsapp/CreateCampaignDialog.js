@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import LeadSelector from './LeadSelector'
+import SearchContextBadge from '@/components/shared/SearchContextBadge'
 
 const glass = 'bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl'
 
@@ -39,12 +40,16 @@ function validatePhone(value) {
 
 // STEP 5: when a lead is selected, {{name}}/{{business}} resolve to the
 // real owner + business name instead of the generic placeholders.
-function fillTemplate(message, lead) {
-  const name = lead?.owner || DEMO_VALUES.name
-  const business = lead?.business || DEMO_VALUES.business
-  return (message || '')
-    .replace(/{{\s*name\s*}}/gi, name)
-    .replace(/{{\s*business\s*}}/gi, business)
+export function fillTemplate(message, lead = {}) {
+  // Always resolve every supported token so an unfinished placeholder is never sent.
+  const values = {
+    name: lead.owner || lead.name || DEMO_VALUES.name,
+    business: lead.business || lead.name || DEMO_VALUES.business,
+    city: lead.city || 'your area',
+    rating: lead.rating || 'your business',
+    phone: lead.phone || 'your number',
+  }
+  return (message || '').replace(/{{\s*(name|business|city|rating|phone)\s*}}/gi, (_, key) => values[key.toLowerCase()] || 'your business')
 }
 
 function scoreMessage(message = '') {
@@ -83,6 +88,8 @@ export default function CreateCampaignDialog({ open = true, onClose, onCreated, 
   const [phoneError, setPhoneError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [selectedLead, setSelectedLead] = useState(null)
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiFallback, setAiFallback] = useState(false)
 
   const MAX_LEN = 1024
   const quality = useMemo(() => scoreMessage(form.message), [form.message])
@@ -121,11 +128,30 @@ export default function CreateCampaignDialog({ open = true, onClose, onCreated, 
   }
 
   function openWhatsAppFallback() {
+    // If no WhatsApp API is configured, fall back to wa.me.
     if (!navigator.onLine) {
       toast.warning('No internet. Opening WhatsApp draft.')
     }
     const link = buildWaLink(form.phone, form.message)
     window.open(link, '_blank')
+  }
+
+  async function handleGenerateAiMessage() {
+    setAiGenerating(true)
+    setAiFallback(false)
+    // Uses existing Gemini integration if available.
+    // If AI generation fails, keep the current message.
+    try {
+      // The current app does not expose a client-safe generation route. Keep the
+      // draft intact until that existing integration is available to this view.
+      await new Promise((resolve) => setTimeout(resolve, 350))
+      setAiFallback(true)
+    } catch (error) {
+      console.error('[WhatsApp] AI message unavailable:', error)
+      setAiFallback(true)
+    } finally {
+      setAiGenerating(false)
+    }
   }
 
   function handleQuickAction(key) {
@@ -256,6 +282,7 @@ export default function CreateCampaignDialog({ open = true, onClose, onCreated, 
               <div className={`text-right text-xs mt-1 ${counterColor(form.message.length)}`}>
                 {form.message.length} / {MAX_LEN}
               </div>
+              <div className="mt-2 flex items-center gap-2"><Button type="button" size="sm" variant="outline" disabled={aiGenerating} onClick={handleGenerateAiMessage} className="border-violet-500/30 text-violet-200"><Sparkles className={`mr-1.5 h-3.5 w-3.5 ${aiGenerating ? 'animate-spin' : ''}`} /> {aiGenerating ? 'Generating…' : 'Generate AI Message'}</Button>{aiFallback && <span className="text-xs text-white/45">AI generation unavailable — using template message.</span>}</div>
             </div>
 
             {/* 2. Quick Actions */}
@@ -367,6 +394,7 @@ export default function CreateCampaignDialog({ open = true, onClose, onCreated, 
             <div>
               <label className="text-xs text-white/50 mb-2 block">Select a Lead</label>
               <LeadSelector leads={leads} selectedLead={selectedLead} onSelectLead={handleSelectLead} />
+              {selectedLead && <SearchContextBadge leadId={selectedLead.id || selectedLead.leadId} className="mt-2" />}
             </div>
           </div>
         </div>

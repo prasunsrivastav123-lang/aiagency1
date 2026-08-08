@@ -20,8 +20,11 @@ import CallHistory from '@/components/calling/CallHistory'
 import IncomingLeadCard from '@/components/calling/IncomingLeadCard'
 import FollowupTimeline from '@/components/calling/FollowupTimeline'
 import ScheduleCallDialog from '@/components/calling/ScheduleCallDialog'
+import LiveCallHeader from '@/components/calling/LiveCallHeader'
+import ObjectionHelper from '@/components/calling/ObjectionHelper'
+import NotesPanel from '@/components/calling/NotesPanel'
 
-import { getCalls, getStats, getSavedLeads, generateScript } from '@/lib/calling/index'
+import { getCalls, getStats, getSavedLeads, generateScript, updateCall } from '@/lib/calling/index'
 import { startBrowserCall } from '@/lib/calling/providers/browser'
 
 function CallingDashboard() {
@@ -36,6 +39,7 @@ function CallingDashboard() {
   const [loadingStats, setLoadingStats] = useState(true)
   const [generatingScript, setGeneratingScript] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [insertedNote, setInsertedNote] = useState('')
 
   const refreshHistory = useCallback(async () => {
     setLoadingHistory(true)
@@ -143,6 +147,17 @@ function CallingDashboard() {
     [handleSelectLead]
   )
 
+  const handleEndLiveCall = useCallback(async () => {
+    if (!selectedCall) return
+    try {
+      const updated = selectedCall.id ? await updateCall({ id: selectedCall.id, status: 'completed', duration: selectedCall.duration || 0 }) : selectedCall
+      handleCallUpdated({ ...updated, __live: false })
+    } catch (error) {
+      console.error('[Calling] end call failed:', error)
+      handleCallUpdated({ ...selectedCall, __live: false })
+    }
+  }, [selectedCall, handleCallUpdated])
+
   return (
     <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       <motion.div
@@ -176,6 +191,8 @@ function CallingDashboard() {
 
       <CallStats stats={stats} loading={loadingStats} />
 
+      <LiveCallHeader lead={selectedLead} activeCall={selectedCall} onEnd={handleEndLiveCall} />
+
       <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-5">
         {/* <CallQueue
           savedLeads={savedLeads}
@@ -200,6 +217,11 @@ function CallingDashboard() {
         generating={generatingScript}
         onRegenerate={handleGenerateScript}
       />
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <ObjectionHelper lead={selectedLead} onInsert={setInsertedNote} />
+        <NotesPanel callId={selectedCall?.id} initialNotes={selectedCall?.notes || ''} insertText={insertedNote} />
+      </div>
 
       <FollowupTimeline
         calls={callHistory}

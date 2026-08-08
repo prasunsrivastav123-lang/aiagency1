@@ -1,10 +1,10 @@
 'use client'
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import {
   Search, MapPin, Phone, Globe, Instagram, Facebook, Star, Sparkles, Loader2,
-  Rocket, Save, Zap, TrendingUp, Mic, Navigation, X, Clock, Flame, MessageCircle,
+  Rocket, Save, Zap, TrendingUp, Mic, Navigation, X, Clock, Flame, MessageCircle, CheckSquare, Download, FileText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,8 +26,12 @@ import GeminiFallbackModal from "@/components/GeminiFallbackModal";
 import DemoPreview from '@/components/demo-preview'
 import SearchDropdown from "@/components/search/SearchDropdown";
 import { saveHistory } from "@/lib/search/history";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { setSelectedLead } from "@/lib/whatsapp/selectedLead";
+import { getSearchById, recordSearch, tagLead } from '@/lib/searchContext'
+import { exportCsv } from '@/lib/export/csv'
+import EmptyState from '@/components/shared/EmptyState'
+import SearchContextBadge from '@/components/shared/SearchContextBadge'
 
 // ---------------------------------------------------------------------------
 // Static config — all local, no network calls
@@ -149,12 +153,24 @@ function LeadCard({
   score,
   scoring,
   generating,
+  selected,
+  onToggle,
 }) {
   const info = {
   ...lead,
   ...(enriched || {}),
 };
   const router = useRouter();
+  // Hot: score >= 80 | Warm: 50-79 | Cold: <50. High Opportunity: no website + rating >= 4.4.
+  const opportunityTags = (() => {
+    const numericScore = Number(score?.score)
+    const tags = []
+    if (Number.isFinite(numericScore)) tags.push(numericScore >= 80 ? 'Hot' : numericScore >= 50 ? 'Warm' : 'Cold')
+    if (!lead.website) tags.push('No Website')
+    if (Number(lead.rating) > 0 && Number(lead.rating) < 4.2) tags.push('Low Rating')
+    if (!lead.website && Number(lead.rating) >= 4.4) tags.push('High Opportunity')
+    return tags
+  })()
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} layout>
 <Card className="border border-border/60 rounded-2xl hover:border-violet-500/40 hover:shadow-xl hover:shadow-violet-500/10 transition-all duration-300">
@@ -163,9 +179,7 @@ function LeadCard({
 
   <div className="flex-1">
 
-    <h2 className="text-xl font-bold">
-      {lead.name}
-    </h2>
+    <div className="flex items-start gap-2"><input aria-label={`Select ${lead.name}`} type="checkbox" checked={selected} onChange={() => onToggle?.(lead.id)} className="mt-1 h-4 w-4 accent-violet-500" /><div><h2 className="text-xl font-bold">{lead.name}</h2><SearchContextBadge leadId={lead.id} className="mt-2" /></div></div>
 
     <p className="flex gap-2 mt-2 text-muted-foreground">
 
@@ -213,6 +227,8 @@ function LeadCard({
   )}
 
 </div>
+
+{opportunityTags.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{opportunityTags.map((tag) => <Badge key={tag} variant="secondary" className={tag === 'Hot' || tag === 'High Opportunity' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500' : 'text-xs'}>{tag}</Badge>)}</div>}
 
     </div>
 
@@ -341,6 +357,10 @@ function LeadCard({
     Save CRM
   </Button>
 
+  <Button variant="outline" onClick={() => { try { sessionStorage.setItem('callingLead', JSON.stringify(info)) } catch {} router.push('/dashboard/calling') }}>
+    <Phone className="mr-2 h-4 w-4" /> Call
+  </Button>
+
   <Button
     onClick={() => {
       setSelectedLead(info);
@@ -423,6 +443,10 @@ const [scoring, setScoring] = useState({})
   const [generating, setGenerating] = useState({})
   const [demo, setDemo] = useState(null)
   const [demoOpen, setDemoOpen] = useState(false)
+  const [activeFilters, setActiveFilters] = useState({})
+  const [selectedIds, setSelectedIds] = useState([])
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   const [showDropdown, setShowDropdown] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -433,6 +457,30 @@ const [fallbackOpen,setFallbackOpen]=useState(false);
 const [fallbackLead,setFallbackLead]=useState(null);
   const wrapperRef = useRef(null)
   const categories = normalizeCategories(CATEGORIES)
+
+  useEffect(() => {
+    const saved = getSearchById(searchParams.get('searchId'))
+    if (saved?.query) { setQuery(saved.query); setActiveFilters(saved.filters || {}); search(saved.query, saved.filters) }
+    // Replaying a search only when the URL context changes is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  const filteredLeads = useMemo(() => leads.filter((lead) => {
+    const rating = Number(lead.rating || 0)
+    const info = enrichedLeads[lead.id] || lead
+    if (activeFilters.hasWebsite && !lead.website) return false
+    if (activeFilters.noWebsite && lead.website) return false
+    if (activeFilters.lowRating && (!rating || rating >= 4.2)) return false
+    if (activeFilters.highRating && rating <= 4.5) return false
+    if (activeFilters.hasPhone && !info.phone) return false
+    if (activeFilters.hasEmail && !info.email) return false
+    if (activeFilters.whatsapp && !info.whatsapp) return false
+    return true
+  }), [leads, enrichedLeads, activeFilters])
+
+  const toggleFilter = (key) => setActiveFilters((filters) => ({ ...filters, [key]: !filters[key] }))
+  const toggleLead = (id) => setSelectedIds((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id])
+  const toggleAll = () => setSelectedIds((ids) => filteredLeads.every((lead) => ids.includes(lead.id)) ? ids.filter((id) => !filteredLeads.some((lead) => lead.id === id)) : [...new Set([...ids, ...filteredLeads.map((lead) => lead.id)])])
 
   // Load recent searches once on mount
   useEffect(() => {
@@ -553,7 +601,7 @@ const [fallbackLead,setFallbackLead]=useState(null);
     )
   }
 
-  async function search(termOverride) {
+  async function search(termOverride, filterOverride = activeFilters) {
     const term = (termOverride ?? query).trim()
     if (!term) {
       return toast.error("Enter a search")
@@ -596,7 +644,11 @@ const res = await api("/leads/search", {
   },
 });
 
-      setLeads(res.leads)
+      const results = Array.isArray(res.leads) ? res.leads : []
+      const searchEntry = recordSearch(term, filterOverride)
+      if (searchEntry) results.forEach((lead) => tagLead(lead.id, searchEntry.searchId))
+      setLeads(results)
+      setSelectedIds([])
       toast.success(`Found ${res.count} businesses`)
     } catch (e) {
       toast.error(e.message)
@@ -953,6 +1005,12 @@ runSearch(text)
         </CardContent>
       </Card>
 
+      {leads.length > 0 && <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-medium text-muted-foreground">Smart filters</span>{[
+        ['hasWebsite', 'Has website'], ['noWebsite', 'No website'], ['lowRating', 'Rating < 4.2'], ['highRating', 'Rating > 4.5'], ['hasPhone', 'Has phone'], ['hasEmail', 'Has email'], ['whatsapp', 'WhatsApp'],
+      ].map(([key, label]) => <Button key={key} size="sm" variant={activeFilters[key] ? 'default' : 'outline'} onClick={() => toggleFilter(key)} className="h-7 rounded-full text-xs">{label}</Button>)}{Object.values(activeFilters).some(Boolean) && <Button size="sm" variant="ghost" onClick={() => setActiveFilters({})} className="h-7 text-xs">Clear all</Button>}</div>}
+
+      {leads.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/5 px-4 py-3"><label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={filteredLeads.length > 0 && filteredLeads.every((lead) => selectedIds.includes(lead.id))} onChange={toggleAll} className="h-4 w-4 accent-violet-500" /> Select all visible <span className="text-muted-foreground">({selectedIds.length} selected)</span></label><div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={!selectedIds.length} title={!selectedIds.length ? 'Select leads to save' : undefined} onClick={async () => { for (const lead of leads.filter((item) => selectedIds.includes(item.id))) await saveLead(lead, scores[lead.id]); }}><Save className="mr-1.5 h-3.5 w-3.5" /> Save to CRM</Button><Button size="sm" variant="outline" disabled={!selectedIds.length} title={!selectedIds.length ? 'Select leads to add to calling' : undefined} onClick={() => { const lead = leads.find((item) => selectedIds.includes(item.id)); if (!lead) return; try { sessionStorage.setItem('callingLead', JSON.stringify({ ...lead, ...(enrichedLeads[lead.id] || {}) })) } catch {} router.push('/dashboard/calling') }}><Phone className="mr-1.5 h-3.5 w-3.5" /> Calling</Button><Button size="sm" variant="outline" disabled={!selectedIds.length} title={!selectedIds.length ? 'Select a lead to create a proposal' : undefined} onClick={() => { const lead = leads.find((item) => selectedIds.includes(item.id)); if (lead) router.push(`/dashboard/proposals?leadId=${encodeURIComponent(lead.id)}`) }}><FileText className="mr-1.5 h-3.5 w-3.5" /> Proposal</Button><Button size="sm" variant="outline" disabled={!selectedIds.length} title={!selectedIds.length ? 'Select leads to export' : undefined} onClick={() => { const selected = leads.filter((lead) => selectedIds.includes(lead.id)); exportCsv(selected.map((lead) => ({ name: lead.name, address: lead.address, phone: lead.phone || enrichedLeads[lead.id]?.phone, rating: lead.rating, website: lead.website || '' })), 'agencyos-leads.csv') }}><Download className="mr-1.5 h-3.5 w-3.5" /> Export CSV</Button><Button size="sm" disabled={!selectedIds.length} title={!selectedIds.length ? 'Select leads to create a campaign' : undefined} onClick={() => { const lead = leads.find((item) => selectedIds.includes(item.id)); if (lead) { setSelectedLead({ ...lead, ...(enrichedLeads[lead.id] || {}) }); router.push('/dashboard/whatsapp') } }}><MessageCircle className="mr-1.5 h-3.5 w-3.5" /> Campaign</Button></div></div>}
+
       {/* Loading skeletons */}
       {loading && leads.length === 0 && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
@@ -961,9 +1019,9 @@ runSearch(text)
       )}
 
       <AnimatePresence>
-        {leads.length > 0 && (
+        {filteredLeads.length > 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
-           {leads.map((l) => (
+           {filteredLeads.map((l) => (
   <LeadCard
     key={l.id}
     lead={l}
@@ -974,23 +1032,16 @@ runSearch(text)
     onScore={scoreLead}
     onGenerateDemo={generateDemo}
     onSave={saveLead}
+    selected={selectedIds.includes(l.id)}
+    onToggle={toggleLead}
   />
 ))}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {leads.length === 0 && !loading && (
-        <Card className="border-dashed border-border/60">
-          <CardContent className="py-16 text-center">
-            <div className="h-14 w-14 mx-auto rounded-2xl bg-gradient-to-br from-violet-500/20 to-blue-500/20 grid place-items-center mb-4">
-              <Search className="h-6 w-6 text-violet-500" />
-            </div>
-            <h3 className="font-semibold text-lg">Start by searching</h3>
-            <p className="text-muted-foreground text-sm mt-1">Type a city + category and hit Search to discover businesses.</p>
-          </CardContent>
-        </Card>
-      )}
+      {leads.length === 0 && !loading && <EmptyState icon={Search} title="Start by searching" description="Type a city and category to discover businesses." />}
+      {leads.length > 0 && filteredLeads.length === 0 && <EmptyState title="No leads match these filters" description="Try removing one or more filters to widen your results." actionLabel="Clear filters" onAction={() => setActiveFilters({})} />}
 
       {/* Demo preview dialog */}
       <Dialog open={demoOpen} onOpenChange={setDemoOpen}>

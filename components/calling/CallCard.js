@@ -27,9 +27,10 @@ import {
   FileText,
   ChevronDown,
 } from 'lucide-react'
-import { createCall, updateCall, saveNotes } from '@/lib/calling/index'
+import { createCall, updateCall, saveNotes, followup } from '@/lib/calling/index'
 import { startBrowserCall } from '@/lib/calling/providers/browser'
 import { formatDuration } from '@/lib/calling/analytics'
+import SearchContextBadge from '@/components/shared/SearchContextBadge'
 
 const STATUS_OPTIONS = [
   { value: 'initiated', label: 'Initiated' },
@@ -41,6 +42,8 @@ const STATUS_OPTIONS = [
   { value: 'meeting-booked', label: 'Meeting Booked' },
   { value: 'completed', label: 'Completed' },
 ]
+
+const OUTCOME_CHIPS = ['interested', 'meeting-booked', 'call-back', 'busy', 'no-answer', 'wrong-number']
 
 function InfoRow({ icon: Icon, label, value }) {
   if (!value) return null
@@ -161,6 +164,19 @@ export default function CallCard({
     }
   }
 
+  async function handleOutcome(outcome) {
+    if (!activeCall?.id) return
+    const previous = activeCall.status
+    onCallUpdated?.({ ...activeCall, status: outcome })
+    try {
+      const updated = await followup({ callId: activeCall.id, outcome, note: notes })
+      onCallUpdated?.({ ...activeCall, ...updated, status: outcome })
+    } catch (error) {
+      console.error('[CallCard] outcome failed:', error)
+      onCallUpdated?.({ ...activeCall, status: previous })
+    }
+  }
+
   async function handleSaveNotes() {
     if (!activeCall?.id) return
     setSavingNotes(true)
@@ -200,6 +216,7 @@ export default function CallCard({
           <div className="min-w-0">
             <h2 className="truncate text-lg sm:text-xl font-semibold text-white">{lead.business}</h2>
             {lead.owner && <p className="mt-0.5 text-sm text-slate-400">{lead.owner}</p>}
+            <SearchContextBadge leadId={lead.leadId || lead.id} className="mt-2" />
           </div>
 
           <div className="flex items-center gap-3">
@@ -316,6 +333,11 @@ export default function CallCard({
             Open Maps
           </a>
         )}
+      </div>
+
+      <div className="border-t border-white/10 px-5 py-4 sm:px-6">
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-slate-500">Call outcome</p>
+        <div className="flex flex-wrap gap-2">{OUTCOME_CHIPS.map((outcome) => <button key={outcome} disabled={!activeCall?.id} onClick={() => handleOutcome(outcome)} className={`rounded-full border px-3 py-1.5 text-xs capitalize transition ${currentStatus === outcome ? 'border-violet-500/50 bg-violet-500/15 text-violet-200' : 'border-white/10 text-slate-300 hover:bg-white/5'} disabled:opacity-40`}>{outcome.replace('-', ' ')}</button>)}</div>
       </div>
 
       <div className="border-t border-white/10 p-5 sm:p-6">

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import {
@@ -16,12 +17,14 @@ import {
   Sparkles,
   RefreshCw,
   Loader2,
+  FileText,
 } from 'lucide-react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import ScoreRing from './ScoreRing'
 import { deriveOpportunityTags, estimateDealValue, formatINR, priorityFromScore } from '@/lib/crm-utils'
+import SearchContextBadge from '@/components/shared/SearchContextBadge'
 
 function IconAction({ icon: Icon, label, onClick, href, loading, tone = 'default' }) {
   const [busy, setBusy] = useState(false)
@@ -64,6 +67,7 @@ function IconAction({ icon: Icon, label, onClick, href, loading, tone = 'default
 }
 
 export default function LeadCard({ lead, onOpen, onDragStart, onDragEnd, onToggleFavorite, onRescore }) {
+  const router = useRouter()
   const b = lead.business || {}
   const score = lead.score?.score ?? null
   const dealValue = lead.dealValue ?? (score != null ? estimateDealValue(score) : null)
@@ -102,6 +106,7 @@ export default function LeadCard({ lead, onOpen, onDragStart, onDragEnd, onToggl
                 <MapPin className="h-3 w-3 shrink-0" />
                 <span className="truncate">{b.city}{b.category ? ` · ${b.category}` : ''}</span>
               </p>
+              <SearchContextBadge leadId={lead.id} className="mt-2" />
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
@@ -178,6 +183,7 @@ export default function LeadCard({ lead, onOpen, onDragStart, onDragEnd, onToggl
               {b.phone && <IconAction icon={Copy} label="Copy Phone" onClick={copyPhone} />}
             </div>
             <IconAction icon={RefreshCw} label="Score Again" onClick={() => onRescore?.(lead)} tone="brand" />
+            <IconAction icon={FileText} label="Generate Proposal" onClick={() => router.push(`/dashboard/proposals?leadId=${encodeURIComponent(lead.id)}`)} tone="brand" />
           </div>
         </CardContent>
       </Card>

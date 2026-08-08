@@ -12,17 +12,18 @@ import {
   Settings,
   LogOut,
   Sparkles,
-  Bell,
   MessageSquare,
   MessageCircle,
   Phone,
-  BarChart3
+  BarChart3,
+  FileText
 } from 'lucide-react'
 import { getUser, getToken, clearAuth } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Menu } from "lucide-react"
+import NotificationCenter from '@/components/dashboard/NotificationCenter'
 
 
 import {
@@ -82,6 +83,18 @@ const NAV = [
     href: "/dashboard/deployments",
     label: "Deployments",
     icon: Rocket,
+  },
+
+  {
+    href: "/dashboard/proposals",
+    label: "Proposals",
+    icon: FileText,
+  },
+
+  {
+    href: "/dashboard/analytics",
+    label: "Analytics",
+    icon: BarChart3,
   },
 
   {
@@ -353,7 +366,7 @@ Welcome back,
               <Sparkles className="h-3.5 w-3.5 text-violet-500" />
               <span className="text-xs">Gemini 2.5 Flash</span>
             </Button>
-            <Button variant="ghost" size="icon"><Bell className="h-4 w-4" /></Button>
+            <NotificationCenter />
           </div>
         </header>
         <main className="flex-1 p-6 md:p-8 overflow-auto">{children}</main>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageCircle, Plus, Send, Users, Reply, TrendingUp,
@@ -10,8 +11,13 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import CreateCampaignDialog from '@/components/whatsapp/CreateCampaignDialog'
 import { getSelectedLead, clearSelectedLead } from '@/lib/whatsapp/selectedLead'
+import TemplateLibrary from '@/components/whatsapp/TemplateLibrary'
+import { SkeletonCard } from '@/components/shared/Skeletons'
+
+const CreateCampaignDialog = dynamic(() => import('@/components/whatsapp/CreateCampaignDialog'), { ssr: false, loading: () => <SkeletonCard /> })
+const CampaignAnalytics = dynamic(() => import('@/components/whatsapp/CampaignAnalytics'), { ssr: false, loading: () => <SkeletonCard /> })
+const MultiStepBuilder = dynamic(() => import('@/components/whatsapp/MultiStepBuilder'), { ssr: false, loading: () => <SkeletonCard /> })
 
 const API = process.env.NEXT_PUBLIC_BASE_URL ? `${process.env.NEXT_PUBLIC_BASE_URL}/api` : '/api'
 
@@ -122,6 +128,13 @@ export default function WhatsAppPage() {
         <StatCard icon={Reply} label="Replies" value={stats.replies ?? 0} gradient="from-fuchsia-500 to-violet-500" delay={0.15} />
         <StatCard icon={TrendingUp} label="Response Rate" value={`${stats.responseRate ?? 0}%`} gradient="from-amber-500 to-orange-500" delay={0.2} />
       </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className={`${glass} lg:col-span-2`}><CardContent className="p-5"><h2 className="mb-4 text-white font-medium">Campaign performance</h2><CampaignAnalytics campaigns={campaigns} /></CardContent></Card>
+        <Card className={glass}><CardContent className="p-5"><h2 className="mb-4 text-white font-medium">Template library</h2><TemplateLibrary onSelect={() => setShowBuilder(true)} /></CardContent></Card>
+      </div>
+
+      {showBuilder && <MultiStepBuilder initialMessage={selectedCampaign?.message || ''} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Campaigns Table */}
